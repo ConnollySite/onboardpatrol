@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Onboard Patrol</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    margin: 0;
+    background: #0f172a;
+    color: #f1f5f9;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 24px 16px;
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: #94a3b8; font-size: 14px; margin-bottom: 24px; }
+  .card {
+    background: #1e293b;
+    border-radius: 16px;
+    padding: 20px;
+    width: 100%;
+    max-width: 400px;
+    margin-bottom: 16px;
+  }
+  label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; margin-top: 14px; }
+  input, select {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid #334155;
+    background: #0f172a;
+    color: #f1f5f9;
+    font-size: 16px;
+  }
+  button {
+    width: 100%;
+    padding: 14px;
+    border-radius: 10px;
+    border: none;
+    background: #2563eb;
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    margin-top: 20px;
+    cursor: pointer;
+  }
+  button:active { background: #1d4ed8; }
+  .hidden { display: none; }
+  .status {
+    font-size: 14px;
+    color: #4ade80;
+    margin-top: 12px;
+    text-align: center;
+  }
+  .teamname {
+    font-size: 15px;
+    color: #94a3b8;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .bigbtn {
+    background: #334155;
+    margin-top: 10px;
+  }
+  .devcode {
+    text-align: center;
+    font-size: 13px;
+    color: #64748b;
+    margin-top: 20px;
+  }
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0F172A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Onboard Patrol">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+</head>
+<body>
+
+<h1>Onboard Patrol</h1>
+<div class="sub">DART / Northern Commuter — Station Scan</div>
+
+<!-- SETUP SCREEN: shown once per phone -->
+<div class="card" id="setupScreen">
+  <strong>Configuração do telemóvel</strong>
+  <label for="teamSelect">Time</label>
+  <select id="teamSelect">
+    <option value="">Selecione o time...</option>
+    <option value="NE">Northeast (NE)</option>
+    <option value="NB">North Bravo (NB)</option>
+  </select>
+
+  <label for="phoneNumber">Número do telemóvel</label>
+  <input type="tel" id="phoneNumber" placeholder="Ex: 0871234567">
+
+  <button onclick="saveSetup()">Guardar configuração</button>
+</div>
+
+<!-- LOGIN SCREEN: shown after setup is done -->
+<div class="card hidden" id="loginScreen">
+  <div class="teamname" id="teamLabel"></div>
+  <strong>Login do time</strong>
+  <label for="pin">PIN</label>
+  <input type="password" id="pin" inputmode="numeric" maxlength="6" placeholder="PIN do time">
+  <button onclick="login()">Entrar</button>
+  <div class="devcode" id="deviceCodeDisplay"></div>
+</div>
+
+<!-- MAIN SCREEN: shown after login, placeholder for scanning -->
+<div class="card hidden" id="mainScreen">
+  <strong>Pronto para escanear</strong>
+  <div class="teamname" id="teamLabelMain"></div>
+  <div class="devcode" id="deviceCodeDisplayMain"></div>
+  <button class="bigbtn" onclick="logout()">Sair / Trocar time</button>
+</div>
+
+<div class="status" id="statusMsg"></div>
+
+<script>
+const LS_DEVICE_CODE = 'onboardpatrol_device_code';
+const LS_TEAM = 'onboardpatrol_team';
+const LS_PHONE = 'onboardpatrol_phone';
+
+const TEAM_NAMES = { NE: 'Northeast', NB: 'North Bravo' };
+
+function showScreen(id) {
+  ['setupScreen','loginScreen','mainScreen'].forEach(s => {
+    document.getElementById(s).classList.toggle('hidden', s !== id);
+  });
+  window.scrollTo(0,0);
+}
+
+function saveSetup() {
+  const team = document.getElementById('teamSelect').value;
+  const phone = document.getElementById('phoneNumber').value.trim();
+
+  if (!team) {
+    alert('Selecione o time.');
+    return;
+  }
+  if (!phone) {
+    alert('Digite o número do telemóvel.');
+    return;
+  }
+
+  const deviceCode = team + phone;
+
+  localStorage.setItem(LS_DEVICE_CODE, deviceCode);
+  localStorage.setItem(LS_TEAM, team);
+  localStorage.setItem(LS_PHONE, phone);
+
+  goToLogin();
+}
+
+function goToLogin() {
+  const team = localStorage.getItem(LS_TEAM);
+  const deviceCode = localStorage.getItem(LS_DEVICE_CODE);
+
+  document.getElementById('teamLabel').textContent = TEAM_NAMES[team] || team;
+  document.getElementById('deviceCodeDisplay').textContent = 'Aparelho: ' + deviceCode;
+
+  showScreen('loginScreen');
+}
+
+function login() {
+  const pin = document.getElementById('pin').value.trim();
+  if (!pin) {
+    alert('Digite o PIN.');
+    return;
+  }
+  // Placeholder: PIN validation against backend will be added later.
+  const team = localStorage.getItem(LS_TEAM);
+  const deviceCode = localStorage.getItem(LS_DEVICE_CODE);
+
+  document.getElementById('teamLabelMain').textContent = TEAM_NAMES[team] || team;
+  document.getElementById('deviceCodeDisplayMain').textContent = 'Aparelho: ' + deviceCode;
+
+  document.getElementById('pin').value = '';
+  showScreen('mainScreen');
+}
+
+function logout() {
+  showScreen('loginScreen');
+}
+
+function init() {
+  const deviceCode = localStorage.getItem(LS_DEVICE_CODE);
+  if (deviceCode) {
+    goToLogin();
+  } else {
+    showScreen('setupScreen');
+  }
+}
+
+init();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+}
+</script>
+</body>
+</html>
