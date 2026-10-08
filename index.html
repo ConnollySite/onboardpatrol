@@ -98,8 +98,9 @@
   <div class="note">Done once on each phone by the supervisor.</div>
   <label for="teamSelect">Team</label>
   <select id="teamSelect"><option value="">Loading teams&hellip;</option></select>
-  <label for="phoneNumber">Phone number of this phone</label>
-  <input type="tel" id="phoneNumber" inputmode="tel" placeholder="e.g. 087 123 4567" autocomplete="off">
+  <label for="phoneNumber">Phone number + secret code</label>
+  <input type="text" id="phoneNumber" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="e.g. X7 087 123 4567" autocomplete="off">
+  <div class="note">Numbers and letters. Only you will see this code, in the dashboard. It is never shown on the phone after setup.</div>
   <div class="preview" id="codePreview"></div>
   <div class="note warn hidden" id="teamsError">Could not load the team list. Check the internet connection and try again.</div>
   <button id="retryTeamsBtn" class="ghost hidden">Try again</button>
@@ -232,7 +233,8 @@ function teamName(code){
 }
 
 /* ================= Setup (once per phone) ================= */
-function digitsOnly(s){ return String(s || '').replace(/\D/g, ''); }
+// Letters and digits are allowed so the supervisor can add a secret code to the phone number.
+function cleanCode(s){ return String(s || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase(); }
 
 function renderTeamOptions(){
   const sel = $('teamSelect');
@@ -246,7 +248,7 @@ function renderTeamOptions(){
 
 function updateCodePreview(){
   const team = $('teamSelect').value;
-  const phone = digitsOnly($('phoneNumber').value);
+  const phone = cleanCode($('phoneNumber').value);
   $('codePreview').textContent = (team && phone) ? 'Device code: ' + team + phone : '';
 }
 
@@ -266,12 +268,13 @@ async function loadTeamsForSetup(){
 
 function saveSetup(){
   const team = $('teamSelect').value;
-  const phone = digitsOnly($('phoneNumber').value);
+  const phone = cleanCode($('phoneNumber').value);
   if(!team){ toast('Select the team'); return; }
-  if(phone.length < 7){ toast('Enter the phone number of this phone'); return; }
+  if(phone.length < 7){ toast('Enter the phone number + secret code (at least 7 characters)'); return; }
   localStorage.setItem(LS_DEVICE_CODE, team + phone);
   localStorage.setItem(LS_TEAM, team);
   localStorage.setItem(LS_PHONE, phone);
+  $('phoneNumber').value = ''; $('codePreview').textContent = '';
   localStorage.removeItem(LS_SIGNED_IN);
   goToLogin();
 }
