@@ -90,7 +90,7 @@
 <body>
 
 <div class="sub" style="letter-spacing:.14em;font-weight:700;margin-bottom:2px;">CONNOLLY SITE</div>
-<h1>Onboard Patrol</h1>
+<h1 id="appTitle">Onboard Patrol</h1>
 
 <!-- SETUP: shown once on each phone -->
 <div class="card hidden" id="setupScreen">
@@ -104,6 +104,16 @@
   <div class="note warn hidden" id="teamsError">Could not load the team list. Check the internet connection and try again.</div>
   <button id="retryTeamsBtn" class="ghost hidden">Try again</button>
   <button id="saveSetupBtn">Save phone setup</button>
+</div>
+
+<!-- TEAM: choose which team is using this phone (reached by holding the title for 3 seconds) -->
+<div class="card hidden" id="teamScreen">
+  <strong>Which team is using this phone?</strong>
+  <div class="note">If this phone is registered to another team, scans will be flagged for the supervisor.</div>
+  <label for="teamPick">Team</label>
+  <select id="teamPick"><option value="">Loading teams&hellip;</option></select>
+  <button id="teamPickBtn">Continue</button>
+  <div style="text-align:center;margin-top:18px;"><a href="#" id="resetLink" style="color:var(--sub);font-size:12px;">Supervisor: change registered phone</a></div>
 </div>
 
 <!-- LOGIN: team PIN -->
@@ -185,7 +195,7 @@ function toast(msg, ms){
 /* ================= Screens ================= */
 function showScreen(name){
   window.scrollTo(0, 0);
-  ['setupScreen','loginScreen','mainScreen'].forEach(id => $(id).classList.add('hidden'));
+  ['setupScreen','teamScreen','loginScreen','mainScreen'].forEach(id => $(id).classList.add('hidden'));
   $(name).classList.remove('hidden');
 }
 
@@ -299,6 +309,63 @@ async function login(){
   }
   $('loginBtn').disabled = false;
 }
+
+function renderTeamPick(){
+  const sel = $('teamPick');
+  sel.innerHTML = teams.length === 0 ? '<option value="">No teams found</option>' :
+    '<option value="">Select the team&hellip;</option>' + teams.map(t => '<option value="'+esc(t.code)+'">'+esc(t.name)+' ('+esc(t.code)+')</option>').join('');
+}
+async function goToTeamPick(){
+  showScreen('teamScreen');
+  $('teamPick').innerHTML = '<option value="">Loading teams&hellip;</option>';
+  await syncTeams();
+  renderTeamPick();
+}
+function pickTeam(){
+  const t = $('teamPick').value;
+  if(!t){ toast('Select the team'); return; }
+  localStorage.setItem(LS_TEAM, t);
+  localStorage.removeItem(LS_SIGNED_IN);
+  goToLogin();
+}
+// Hold the title for 3 seconds: full team log-off. The phone keeps its registered code.
+function fullLogoff(){
+  if(!deviceCode()) return;
+  stopScan();
+  localStorage.removeItem(LS_SIGNED_IN);
+  localStorage.removeItem(LS_TEAM);
+  goToTeamPick();
+}
+(function(){
+  let timer = null;
+  const el = $('appTitle');
+  const start = () => { clearTimeout(timer); timer = setTimeout(fullLogoff, 3000); };
+  const stop = () => { clearTimeout(timer); timer = null; };
+  el.addEventListener('pointerdown', start);
+  ['pointerup','pointerleave','pointercancel','pointermove'].forEach(ev => el.addEventListener(ev, stop));
+  el.addEventListener('contextmenu', e => e.preventDefault());
+  el.style.userSelect = 'none'; el.style.webkitUserSelect = 'none'; el.style.webkitTouchCallout = 'none';
+})();
+$('teamPickBtn').addEventListener('click', pickTeam);
+
+async function resetPhone(ev){
+  ev.preventDefault();
+  if(!navigator.onLine){ toast('Internet needed to reset this phone'); return; }
+  const pin = prompt('Supervisor PIN to reset this phone');
+  if(!pin) return;
+  try{
+    const r = await fetchJSON('format=supcheck&pin=' + encodeURIComponent(pin.trim()));
+    if(r && r.ok){
+      [LS_DEVICE_CODE, LS_TEAM, LS_PHONE, LS_SIGNED_IN].forEach(k => localStorage.removeItem(k));
+      $('pin').value = '';
+      showScreen('setupScreen');
+      renderTeamOptions();
+      loadTeamsForSetup();
+      toast('Phone reset. Set it up again.');
+    } else { toast('Incorrect supervisor PIN'); }
+  }catch(e){ toast('Could not reach the server. Try again.'); }
+}
+$('resetLink').addEventListener('click', resetPhone);
 
 function signOut(){
   stopScan();
@@ -538,6 +605,7 @@ function init(){
     if(!$('mainScreen').classList.contains('hidden')){ $('teamLabelMain').textContent = teamName(teamCode()); }
     else if(!$('loginScreen').classList.contains('hidden')){ $('teamLabel').textContent = teamName(teamCode()); }
   });
+  if(!teamCode()){ goToTeamPick(); return; }
   if(localStorage.getItem(LS_SIGNED_IN) === '1') enterMain();
   else goToLogin();
 }
