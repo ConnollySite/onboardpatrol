@@ -340,14 +340,21 @@ function fullLogoff(){
   goToTeamPick();
 }
 (function(){
-  let timer = null;
+  // Hold the title 3 s. Works with touch, pen and mouse; a finger drifting more than 20 px cancels it.
+  let timer = null, sx = 0, sy = 0;
   const el = $('appTitle');
-  const start = () => { clearTimeout(timer); timer = setTimeout(fullLogoff, 3000); };
+  const start = (x, y) => { clearTimeout(timer); sx = x; sy = y; timer = setTimeout(() => { timer = null; fullLogoff(); }, 3000); };
   const stop = () => { clearTimeout(timer); timer = null; };
-  el.addEventListener('pointerdown', start);
-  ['pointerup','pointerleave','pointercancel','pointermove'].forEach(ev => el.addEventListener(ev, stop));
+  const move = (x, y) => { if(timer && (Math.abs(x - sx) > 20 || Math.abs(y - sy) > 20)) stop(); };
+  el.addEventListener('touchstart', e => { const t = e.touches[0]; start(t ? t.clientX : 0, t ? t.clientY : 0); }, { passive: true });
+  el.addEventListener('touchmove', e => { const t = e.touches[0]; if(t) move(t.clientX, t.clientY); }, { passive: true });
+  ['touchend','touchcancel'].forEach(ev => el.addEventListener(ev, stop));
+  el.addEventListener('pointerdown', e => { if(e.pointerType !== 'touch') start(e.clientX || 0, e.clientY || 0); });
+  el.addEventListener('pointermove', e => { if(e.pointerType !== 'touch') move(e.clientX || 0, e.clientY || 0); });
+  ['pointerup','pointerleave'].forEach(ev => el.addEventListener(ev, e => { if(e.pointerType !== 'touch') stop(); }));
   el.addEventListener('contextmenu', e => e.preventDefault());
   el.style.userSelect = 'none'; el.style.webkitUserSelect = 'none'; el.style.webkitTouchCallout = 'none';
+  el.style.padding = '10px 24px'; el.style.touchAction = 'manipulation';
 })();
 $('teamPickBtn').addEventListener('click', pickTeam);
 
