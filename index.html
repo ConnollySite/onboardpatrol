@@ -348,6 +348,27 @@ function fullLogoff(){
 })();
 $('teamPickBtn').addEventListener('click', pickTeam);
 
+// The supervisor can remove this phone's registration from the dashboard.
+let revokeBusy = false;
+async function checkRevoked(){
+  const code = deviceCode();
+  if(!code || revokeBusy || !navigator.onLine) return;
+  revokeBusy = true;
+  try{
+    const r = await fetchJSON('format=devicecheck&device=' + encodeURIComponent(code));
+    if(r && r.revoked === true){
+      stopScan();
+      [LS_DEVICE_CODE, LS_TEAM, LS_PHONE, LS_SIGNED_IN].forEach(k => localStorage.removeItem(k));
+      try{ await fetchJSON('format=deviceack&device=' + encodeURIComponent(code)); }catch(e){}
+      showScreen('setupScreen');
+      renderTeamOptions();
+      loadTeamsForSetup();
+      toast('This phone was removed by the supervisor. Set it up again.', 5000);
+    }
+  }catch(e){}
+  revokeBusy = false;
+}
+
 async function resetPhone(ev){
   ev.preventDefault();
   if(!navigator.onLine){ toast('Internet needed to reset this phone'); return; }
@@ -589,12 +610,13 @@ $('manualLogBtn').addEventListener('click', () => {
   $('manualCode').value = '';
   handleScan(code, 'Manual entry');
 });
-window.addEventListener('online', () => { syncQueue(true); syncTags(); });
-setInterval(() => { if(navigator.onLine){ syncQueue(true); } }, 60 * 1000);
+window.addEventListener('online', () => { syncQueue(true); syncTags(); checkRevoked(); });
+setInterval(() => { if(navigator.onLine){ syncQueue(true); checkRevoked(); } }, 60 * 1000);
 setInterval(() => { if(navigator.onLine){ syncTags(); } }, 5 * 60 * 1000);
 
 /* ================= Boot ================= */
 function init(){
+  setTimeout(checkRevoked, 500);
   if(!deviceCode()){
     showScreen('setupScreen');
     renderTeamOptions();
