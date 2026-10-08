@@ -16,7 +16,7 @@
     display: flex; flex-direction: column; align-items: center;
     padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
   }
-  h1 { font-size: 20px; margin: 0 0 4px; }
+  h1 { font-size: 20px; margin: 0 0 20px; text-align: center; }
   .sub { color: var(--sub); font-size: 14px; margin-bottom: 20px; text-align: center; }
   .card { background: var(--card); border-radius: 16px; padding: 20px; width: 100%; max-width: 420px; margin-bottom: 16px; }
   .hidden { display: none !important; }
@@ -89,8 +89,8 @@
 </head>
 <body>
 
+<div class="sub" style="letter-spacing:.14em;font-weight:700;margin-bottom:2px;">CONNOLLY SITE</div>
 <h1>Onboard Patrol</h1>
-<div class="sub">DART / Northern Commuter &mdash; Station Scan</div>
 
 <!-- SETUP: shown once on each phone -->
 <div class="card hidden" id="setupScreen">
@@ -113,7 +113,6 @@
   <label for="pin">Team PIN</label>
   <input type="password" id="pin" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="PIN">
   <button id="loginBtn">Sign in</button>
-  <div class="devcode" id="deviceCodeDisplay"></div>
 </div>
 
 <!-- MAIN: scanning -->
@@ -122,7 +121,6 @@
     <div class="topline">
       <div>
         <div class="t" id="teamLabelMain"></div>
-        <div class="d" id="deviceCodeDisplayMain"></div>
       </div>
       <button class="small ghost" id="signOutBtn">Sign out</button>
     </div>
@@ -274,7 +272,6 @@ function teamCode(){ return localStorage.getItem(LS_TEAM) || ''; }
 
 function goToLogin(){
   $('teamLabel').textContent = teamName(teamCode());
-  $('deviceCodeDisplay').textContent = 'Phone: ' + deviceCode();
   $('pin').value = '';
   showScreen('loginScreen');
 }
@@ -313,7 +310,6 @@ function signOut(){
 /* ================= Main screen ================= */
 function enterMain(){
   $('teamLabelMain').textContent = teamName(teamCode());
-  $('deviceCodeDisplayMain').textContent = 'Phone: ' + deviceCode();
   showScreen('mainScreen');
   initNfcState();
   primeGps();
