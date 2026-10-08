@@ -72,6 +72,20 @@
   .chip.bad { background: rgba(248,113,113,.15); color: var(--bad); }
   .empty { font-size: 13px; color: var(--sub); }
 
+  .planbtn { background: #0b1220; border: 1px solid var(--blue); color: #fff; margin-top: 14px; }
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 4px; }
+  .tab { width: auto; margin: 0; padding: 8px 14px; font-size: 13px; background: var(--line); border-radius: 999px; }
+  .tab.on { background: var(--blue); }
+  .tl { position: relative; margin: 14px 0 0 10px; padding-left: 22px; border-left: 3px solid var(--line); }
+  .stop { position: relative; padding: 0 0 18px; }
+  .stop::before { content: ''; position: absolute; left: -33px; top: 3px; width: 13px; height: 13px; border-radius: 50%; background: var(--bg); border: 3px solid var(--sub); }
+  .stop.note::before { border-color: var(--warn); }
+  .stop.done { opacity: .5; }
+  .stop.now::before { background: var(--ok); border-color: var(--ok); box-shadow: 0 0 0 5px rgba(74,222,128,.25); }
+  .stop .tm { font-size: 13px; color: var(--sub); font-variant-numeric: tabular-nums; }
+  .stop .st { font-size: 16px; font-weight: 700; margin: 2px 0; }
+  .stop .ins { font-size: 13px; color: #cbd5e1; }
+  .stop .nowtag { display: inline-block; font-size: 11px; font-weight: 700; color: #052e16; background: var(--ok); border-radius: 999px; padding: 2px 8px; margin-left: 8px; }
   #toast {
     position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px);
     background: #0b1220; border: 1px solid var(--line); color: var(--ink); padding: 11px 16px; border-radius: 12px;
@@ -126,8 +140,21 @@
   <button id="loginBtn">Sign in</button>
 </div>
 
+<!-- PLAN: what this team has to do today -->
+<div class="hidden" id="planScreen" style="width:100%;max-width:420px;">
+  <div class="card">
+    <div class="topline">
+      <div><div class="t">Patrol plan</div><div class="d" id="planTeam" style="font-size:13px;color:var(--sub);"></div></div>
+      <button class="small ghost" id="planBackBtn">Back</button>
+    </div>
+    <div class="tabs" id="planTabs"></div>
+    <div id="planBody"></div>
+  </div>
+</div>
+
 <!-- MAIN: scanning -->
 <div class="hidden" id="mainScreen" style="width:100%;max-width:420px;">
+  <button class="planbtn" id="planBtn">Today's plan</button>
   <div class="card">
     <div class="topline">
       <div>
@@ -174,6 +201,7 @@ const LS_SIGNED_IN = 'onboardpatrol_signed_in';
 const LS_LOG = 'onboardpatrol_log';
 const LS_TAGS = 'onboardpatrol_tags';
 const LS_TEAMS = 'onboardpatrol_teams';
+const LS_PLAN = 'onboardpatrol_plan';
 
 const $ = id => document.getElementById(id);
 function loadJSON(k, fb){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; }catch(e){ return fb; } }
@@ -196,7 +224,7 @@ function toast(msg, ms){
 /* ================= Screens ================= */
 function showScreen(name){
   window.scrollTo(0, 0);
-  ['setupScreen','teamScreen','loginScreen','mainScreen'].forEach(id => $(id).classList.add('hidden'));
+  ['setupScreen','teamScreen','loginScreen','mainScreen','planScreen'].forEach(id => $(id).classList.add('hidden'));
   $(name).classList.remove('hidden');
 }
 
@@ -408,6 +436,8 @@ function signOut(){
 /* ================= Main screen ================= */
 function enterMain(){
   $('teamLabelMain').textContent = teamName(teamCode());
+  loadPlanCache();
+  syncPlan();
   showScreen('mainScreen');
   initNfcState();
   primeGps();
@@ -620,9 +650,120 @@ $('manualLogBtn').addEventListener('click', () => {
   $('manualCode').value = '';
   handleScan(code, 'Manual entry');
 });
-window.addEventListener('online', () => { syncQueue(true); syncTags(); checkRevoked(); });
+window.addEventListener('online', () => { syncQueue(true); syncTags(); syncPlan(); checkRevoked(); });
 setInterval(() => { if(navigator.onLine){ syncQueue(true); checkRevoked(); } }, 60 * 1000);
-setInterval(() => { if(navigator.onLine){ syncTags(); } }, 5 * 60 * 1000);
+setInterval(() => { if(navigator.onLine){ syncTags(); syncPlan(); } }, 5 * 60 * 1000);
+
+
+/* ================= Patrol plan ================= */
+let planRows = [];
+let planGroup = '';
+function loadPlanCache(){
+  const c = loadJSON(LS_PLAN, {});
+  planRows = (c.team === teamCode() && Array.isArray(c.rows)) ? c.rows : [];
+  planGroup = '';
+}
+const DAY_CODES = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
+const DAY_NAMES = { MON:'Mon', TUE:'Tue', WED:'Wed', THU:'Thu', FRI:'Fri', SAT:'Sat', SUN:'Sun', BH:'Bank holidays' };
+
+async function syncPlan(){
+  const team = teamCode();
+  if(!team || !navigator.onLine) return false;
+  try{
+    const arr = await fetchJSON('format=plan&team=' + encodeURIComponent(team));
+    if(!Array.isArray(arr)) return false;
+    planRows = arr;
+    saveJSON(LS_PLAN, { team: team, rows: arr });
+    if(!$('planScreen').classList.contains('hidden')) renderPlan();
+    return true;
+  }catch(e){ return false; }
+}
+function daysLabel(codes){
+  if(!codes || codes === 'DEFAULT') return 'Every day';
+  const list = codes.split(',');
+  const week = list.filter(c => c !== 'BH');
+  const parts = [];
+  let i = 0;
+  while(i < week.length){
+    let j = i;
+    while(j + 1 < week.length && DAY_CODES.indexOf(week[j + 1]) === DAY_CODES.indexOf(week[j]) + 1) j++;
+    parts.push(j - i >= 2 ? DAY_NAMES[week[i]] + ' - ' + DAY_NAMES[week[j]] : week.slice(i, j + 1).map(c => DAY_NAMES[c]).join(', '));
+    i = j + 1;
+  }
+  if(list.indexOf('BH') >= 0) parts.push('Bank holidays');
+  return parts.join(', ');
+}
+// A shift that runs past midnight still belongs to the day it started: before 06:00 we use yesterday.
+function shiftDayCode(){
+  const d = new Date();
+  if(d.getHours() < 6) d.setDate(d.getDate() - 1);
+  return ['SUN','MON','TUE','WED','THU','FRI','SAT'][d.getDay()];
+}
+function planGroups(){
+  const order = [];
+  planRows.forEach(r => { if(order.indexOf(r.days) < 0) order.push(r.days); });
+  return order;
+}
+function todaysGroup(groups){
+  const day = shiftDayCode();
+  const hit = groups.find(g => g !== 'DEFAULT' && g.split(',').indexOf(day) >= 0);
+  return hit || (groups.indexOf('DEFAULT') >= 0 ? 'DEFAULT' : (groups[0] || ''));
+}
+function hhmm(t){ const m = /^(\d{2}):(\d{2})$/.exec(t || ''); return m ? Number(m[1]) * 60 + Number(m[2]) : null; }
+// Minutes on one continuous timeline, so 00:07 after 23:51 counts as later.
+function timeline(rows){
+  let prev = -1, add = 0;
+  return rows.map(r => {
+    const t = hhmm(r.dep) !== null ? hhmm(r.dep) : hhmm(r.arr);
+    let v = t === null ? prev : t + add;
+    if(t !== null && v < prev - 60){ add += 1440; v = t + add; }
+    if(v > prev) prev = v;
+    return v;
+  });
+}
+function renderPlan(){
+  $('planTeam').textContent = teamName(teamCode());
+  const groups = planGroups();
+  if(!groups.length){
+    $('planTabs').innerHTML = '';
+    $('planBody').innerHTML = '<div class="empty">No plan has been added for your team yet.</div>';
+    return;
+  }
+  const today = todaysGroup(groups);
+  if(groups.indexOf(planGroup) < 0) planGroup = today;
+  $('planTabs').innerHTML = groups.length > 1 ? groups.map(g =>
+    '<button class="tab' + (g === planGroup ? ' on' : '') + '" data-g="' + esc(g) + '">' + esc(daysLabel(g)) + (g === today ? ' (today)' : '') + '</button>').join('') : '';
+  [...$('planTabs').querySelectorAll('[data-g]')].forEach(b => b.onclick = () => { planGroup = b.getAttribute('data-g'); renderPlan(); });
+  const rows = planRows.filter(r => r.days === planGroup);
+  const times = timeline(rows);
+  let now = null;
+  if(planGroup === today){
+    const d = new Date();
+    let nm = d.getHours() * 60 + d.getMinutes();
+    if(d.getHours() < 6) nm += 1440;
+    let idx = -1;
+    times.forEach((t, i) => { if(t <= nm) idx = i; });
+    now = idx;
+  }
+  $('planBody').innerHTML = '<div class="tl">' + rows.map((r, i) => {
+    const leg = r.to ? esc(r.from) + ' &rarr; ' + esc(r.to) : esc(r.from);
+    const tm = [r.dep, r.arr].filter(Boolean).join(' &rarr; ');
+    const cls = 'stop' + (r.to ? '' : ' note') + (now !== null && i < now ? ' done' : '') + (now === i ? ' now' : '');
+    return '<div class="' + cls + '"><div class="tm">' + tm + (now === i ? '<span class="nowtag">NOW</span>' : '') + '</div>' +
+      '<div class="st">' + (leg || '&nbsp;') + '</div>' + (r.instr ? '<div class="ins">' + esc(r.instr) + '</div>' : '') + '</div>';
+  }).join('') + '</div>';
+  if(now !== null && now >= 0){
+    const el = $('planBody').querySelector('.stop.now');
+    if(el && el.scrollIntoView) el.scrollIntoView({ block: 'center' });
+  }
+}
+function openPlan(){
+  showScreen('planScreen');
+  renderPlan();
+  syncPlan();
+}
+$('planBtn').addEventListener('click', openPlan);
+$('planBackBtn').addEventListener('click', () => showScreen('mainScreen'));
 
 /* ================= Boot ================= */
 function init(){
