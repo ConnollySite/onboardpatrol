@@ -86,6 +86,29 @@
   .stop .st { font-size: 16px; font-weight: 700; margin: 2px 0; }
   .stop .ins { font-size: 13px; color: #cbd5e1; }
   .stop .nowtag { display: inline-block; font-size: 11px; font-weight: 700; color: #052e16; background: var(--ok); border-radius: 999px; padding: 2px 8px; margin-left: 8px; }
+  .duo { display: flex; gap: 10px; } .duo .planbtn { margin-top: 10px; position: relative; }
+  .newdot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #f97316; margin-left: 8px; vertical-align: middle; }
+  #contentOverlay { position: fixed; inset: 0; z-index: 80; background: var(--bg); overflow-y: auto; padding: calc(14px + env(safe-area-inset-top)) 14px calc(24px + env(safe-area-inset-bottom)); }
+  #contentOverlay .cbox { max-width: 480px; margin: 0 auto; }
+  #contentOverlay .chead { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  #contentOverlay .chead h2 { flex: 1; font-size: 20px; margin: 0; }
+  #contentOverlay .chead button { width: auto; margin: 0; padding: 10px 16px; font-size: 15px; }
+  #contentOverlay .ctext { white-space: pre-wrap; font-size: 17px; line-height: 1.5; margin-bottom: 14px; word-break: break-word; }
+  #contentOverlay .cmedia { margin-bottom: 14px; }
+  #contentOverlay .cmedia img, #contentOverlay .cmedia video { width: 100%; border-radius: 12px; background: #000; display: block; }
+  #contentOverlay .cmedia .frame { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: #000; }
+  #contentOverlay .cmedia iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  #contentOverlay a.ext { display: block; text-align: center; padding: 14px; border-radius: 10px; background: var(--line); color: #fff; text-decoration: none; font-weight: 600; }
+  #contentOverlay .citem { text-align: left; background: var(--card); margin-top: 10px; display: flex; justify-content: space-between; }
+  #noticeOverlay { position: fixed; inset: 0; z-index: 100; background: #7c2d12; overflow-y: auto; display: flex; align-items: flex-start; justify-content: center; padding: calc(16px + env(safe-area-inset-top)) 14px calc(24px + env(safe-area-inset-bottom)); }
+  #noticeOverlay .nbox { width: 100%; max-width: 480px; }
+  .nhead { background: #fbbf24; color: #1c1917; font-weight: 800; font-size: 15px; letter-spacing: .04em; text-align: center; padding: 12px; border-radius: 12px 12px 0 0; }
+  .ntext { background: #fff7ed; color: #1c1917; font-size: 22px; line-height: 1.35; font-weight: 700; padding: 22px 18px; white-space: pre-wrap; word-break: break-word; }
+  .nask { color: #ffedd5; font-size: 14px; font-weight: 700; margin: 16px 2px 8px; }
+  #noticeWho button { font-size: 19px; padding: 18px 14px; margin-top: 10px; background: #fff; color: #7c2d12; }
+  #noticeWho button:active { background: #fed7aa; }
+  #noticeWho .confirmed { margin-top: 10px; padding: 18px 14px; border-radius: 10px; background: #14532d; color: #dcfce7; font-size: 19px; font-weight: 700; text-align: center; }
+  .nfoot { color: #fed7aa; font-size: 12px; text-align: center; margin-top: 14px; }
   #toast {
     position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px);
     background: #0b1220; border: 1px solid var(--line); color: var(--ink); padding: 11px 16px; border-radius: 12px;
@@ -155,6 +178,10 @@
 <!-- MAIN: scanning -->
 <div class="hidden" id="mainScreen" style="width:100%;max-width:420px;">
   <button class="planbtn" id="planBtn">Today's plan</button>
+  <div class="duo">
+    <button class="planbtn" id="briefBtn">Briefing<span class="newdot hidden" id="briefDot"></span></button>
+    <button class="planbtn" id="trainBtn">Training</button>
+  </div>
   <div class="card">
     <div class="topline">
       <div>
@@ -187,6 +214,23 @@
   </div>
 </div>
 
+<!-- NOTICE: supervisor message, full screen, every person of the crew confirms by name -->
+<div id="noticeOverlay" class="hidden">
+  <div class="nbox">
+    <div class="nhead">&#9888; MESSAGE FROM THE SUPERVISOR</div>
+    <div class="ntext" id="noticeText"></div>
+    <div class="nask">Each person must confirm below:</div>
+    <div id="noticeWho"></div>
+    <div class="nfoot" id="noticeFoot"></div>
+  </div>
+</div>
+<!-- BRIEFING / TRAINING pop-up -->
+<div id="contentOverlay" class="hidden">
+  <div class="cbox">
+    <div class="chead"><button class="ghost hidden" id="contentBack">&larr; List</button><h2 id="contentTitle"></h2><button id="contentClose">Close</button></div>
+    <div id="contentBody"></div>
+  </div>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -202,6 +246,9 @@ const LS_LOG = 'onboardpatrol_log';
 const LS_TAGS = 'onboardpatrol_tags';
 const LS_TEAMS = 'onboardpatrol_teams';
 const LS_PLAN = 'onboardpatrol_plan';
+const LS_NOTICES = 'onboardpatrol_notices';
+const LS_ACKS = 'onboardpatrol_acks';
+const LS_ACKQ = 'onboardpatrol_ackq';
 
 const $ = id => document.getElementById(id);
 function loadJSON(k, fb){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; }catch(e){ return fb; } }
@@ -364,6 +411,8 @@ function fullLogoff(){
   if(!deviceCode()) return;
   stopScan();
   localStorage.removeItem(LS_SIGNED_IN);
+  closeContent();
+  renderNotice();
   localStorage.removeItem(LS_TEAM);
   goToTeamPick();
 }
@@ -429,6 +478,8 @@ $('resetLink').addEventListener('click', resetPhone);
 function signOut(){
   stopScan();
   localStorage.removeItem(LS_SIGNED_IN);
+  closeContent();
+  renderNotice();
   goToLogin();
   toast('Signed out');
 }
@@ -438,6 +489,12 @@ function enterMain(){
   $('teamLabelMain').textContent = teamName(teamCode());
   loadPlanCache();
   syncPlan();
+  loadNoticeCache();
+  renderNotice();
+  pollNotices();
+  closeContent();
+  updateBriefDot();
+  syncContent();
   showScreen('mainScreen');
   initNfcState();
   primeGps();
@@ -650,7 +707,7 @@ $('manualLogBtn').addEventListener('click', () => {
   $('manualCode').value = '';
   handleScan(code, 'Manual entry');
 });
-window.addEventListener('online', () => { syncQueue(true); syncTags(); syncPlan(); checkRevoked(); });
+window.addEventListener('online', () => { syncQueue(true); syncTags(); syncPlan(); checkRevoked(); pollNotices(); });
 setInterval(() => { if(navigator.onLine){ syncQueue(true); checkRevoked(); } }, 60 * 1000);
 setInterval(() => { if(navigator.onLine){ syncTags(); syncPlan(); } }, 5 * 60 * 1000);
 
@@ -764,6 +821,186 @@ function openPlan(){
 }
 $('planBtn').addEventListener('click', openPlan);
 $('planBackBtn').addEventListener('click', () => showScreen('mainScreen'));
+
+
+/* ================= Supervisor messages ================= */
+let noticeData = { messages: [] };
+let noticeShown = '';
+let noticeBusy = false;
+const ackKey = (id) => teamCode() + ':' + id;
+function localAcks(id){ return (loadJSON(LS_ACKS, {})[ackKey(id)]) || []; }
+function normN(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+function missingFor(m){
+  const done = (m.done || []).concat(localAcks(m.id)).map(normN);
+  return (m.needed || []).filter(n => done.indexOf(normN(n)) < 0);
+}
+function pendingNotice(){
+  return (noticeData.messages || []).find(m => missingFor(m).length > 0) || null;
+}
+function renderNotice(){
+  const signed = localStorage.getItem(LS_SIGNED_IN) === '1';
+  const m = signed ? pendingNotice() : null;
+  const ov = $('noticeOverlay');
+  if(!m){ ov.classList.add('hidden'); noticeShown = ''; return; }
+  const miss = missingFor(m).map(normN);
+  ov.classList.remove('hidden');
+  $('noticeText').textContent = m.text;
+  $('noticeWho').innerHTML = (m.needed || []).map((n, i) => miss.indexOf(normN(n)) >= 0
+    ? '<button data-who="' + i + '">' + esc(n) + ' &mdash; I have read this</button>'
+    : '<div class="confirmed">&#10003; ' + esc(n) + ' confirmed</div>').join('');
+  [...$('noticeWho').querySelectorAll('[data-who]')].forEach(b => b.onclick = () => confirmNotice(m, m.needed[Number(b.getAttribute('data-who'))]));
+  const left = (noticeData.messages || []).filter(x => missingFor(x).length > 0).length;
+  $('noticeFoot').textContent = left > 1 ? (left - 1) + ' more message(s) after this one' : '';
+  if(noticeShown !== m.id){
+    noticeShown = m.id;
+    try{ if(navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]); }catch(e){}
+    ov.scrollTop = 0;
+  }
+}
+function confirmNotice(m, name){
+  const all = loadJSON(LS_ACKS, {});
+  const k = ackKey(m.id);
+  all[k] = (all[k] || []).concat([name]);
+  saveJSON(LS_ACKS, all);
+  const q = loadJSON(LS_ACKQ, []);
+  q.push({ id: m.id, team: teamCode(), name: name, device: deviceCode() });
+  saveJSON(LS_ACKQ, q);
+  renderNotice();
+  flushAcks();
+}
+let ackBusy = false;
+async function flushAcks(){
+  if(ackBusy || !navigator.onLine) return;
+  ackBusy = true;
+  try{
+    let q = loadJSON(LS_ACKQ, []);
+    while(q.length){
+      const a = q[0];
+      let r = null;
+      try{ r = await fetchJSON('format=ack&id=' + encodeURIComponent(a.id) + '&team=' + encodeURIComponent(a.team) + '&name=' + encodeURIComponent(a.name) + '&device=' + encodeURIComponent(a.device)); }catch(e){ break; }
+      // "Unknown message" = the supervisor deleted it: nothing left to confirm, drop it too.
+      if(r && (r.ok || r.error === 'Unknown message')){ q = loadJSON(LS_ACKQ, []).slice(1); saveJSON(LS_ACKQ, q); } else break;
+    }
+  }finally{ ackBusy = false; }
+}
+async function pollNotices(){
+  if(noticeBusy || !teamCode() || localStorage.getItem(LS_SIGNED_IN) !== '1') return;
+  noticeBusy = true;
+  try{
+    await flushAcks();
+    if(navigator.onLine){
+      const r = await fetchJSON('format=notices&team=' + encodeURIComponent(teamCode()));
+      if(r && Array.isArray(r.messages)){ noticeData = r; saveJSON(LS_NOTICES, { team: teamCode(), data: r }); }
+    }
+  }catch(e){}
+  noticeBusy = false;
+  renderNotice();
+}
+function loadNoticeCache(){
+  const c = loadJSON(LS_NOTICES, {});
+  noticeData = (c.team === teamCode() && c.data && Array.isArray(c.data.messages)) ? c.data : { messages: [] };
+  noticeShown = '';
+}
+setInterval(() => { pollNotices(); }, 45 * 1000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden) pollNotices(); });
+
+/* ================= Briefing and Training ================= */
+const LS_CONTENT = 'onboardpatrol_content';
+const LS_BRSEEN = 'onboardpatrol_brief_seen';
+let contentData = loadJSON(LS_CONTENT, { briefing: null, training: [] });
+let contentView = '';   // 'brief' | 'list' | 'item'
+const briefStamp = () => contentData.briefing ? (contentData.briefing.updated || 'x') : '';
+function updateBriefDot(){
+  const b = contentData.briefing;
+  const has = !!(b && (b.title || b.body || (b.media && b.media.length)));
+  $('briefDot').classList.toggle('hidden', !(has && localStorage.getItem(LS_BRSEEN) !== briefStamp()));
+}
+async function syncContent(){
+  try{
+    if(!navigator.onLine) return;
+    const r = await fetchJSON('format=content');
+    if(r && Array.isArray(r.training)){ contentData = { briefing: r.briefing || null, training: r.training }; saveJSON(LS_CONTENT, contentData); }
+  }catch(e){}
+  updateBriefDot();
+  if(!$('contentOverlay').classList.contains('hidden')) refreshContentView();
+}
+// Turn a link into an embedded player, an image, a video or a plain "open" link. https only.
+function mediaHtml(u){
+  u = String(u || '').trim();
+  if(!/^https:\/\/[^\s"'<>]+$/i.test(u)) return '';
+  let m;
+  const frame = src => '<div class="frame"><iframe src="' + esc(src) + '" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy" referrerpolicy="no-referrer"></iframe></div>';
+  if((m = /^https:\/\/(?:www\.|m\.)?youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|embed\/|live\/)([\w-]{6,20})/i.exec(u)) || (m = /^https:\/\/youtu\.be\/([\w-]{6,20})/i.exec(u)))
+    return frame('https://www.youtube-nocookie.com/embed/' + m[1]);
+  if((m = /^https:\/\/(?:www\.)?vimeo\.com\/(\d+)/i.exec(u)))
+    return frame('https://player.vimeo.com/video/' + m[1]);
+  if((m = /^https:\/\/drive\.google\.com\/file\/d\/([\w-]+)/i.exec(u)) || (m = /^https:\/\/drive\.google\.com\/(?:open|uc)\?(?:[^#]*&)?id=([\w-]+)/i.exec(u)))
+    return frame('https://drive.google.com/file/d/' + m[1] + '/preview');
+  const path = u.split('?')[0].split('#')[0];
+  if(/\.(jpe?g|png|gif|webp|avif)$/i.test(path)) return '<img src="' + esc(u) + '" alt="" loading="lazy" referrerpolicy="no-referrer">';
+  if(/\.(mp4|webm|m4v|mov)$/i.test(path)) return '<video src="' + esc(u) + '" controls playsinline preload="metadata"></video>';
+  return '<a class="ext" href="' + esc(u) + '" target="_blank" rel="noopener noreferrer">Open link</a>';
+}
+function contentBlock(it){
+  let h = '';
+  if(it.body) h += '<div class="ctext">' + esc(it.body) + '</div>';
+  (it.media || []).forEach(u => { const x = mediaHtml(u); if(x) h += '<div class="cmedia">' + x + '</div>'; });
+  return h || '<div class="note">Nothing here yet.</div>';
+}
+function showContent(){ $('contentOverlay').classList.remove('hidden'); $('contentOverlay').scrollTop = 0; }
+function closeContent(){ $('contentOverlay').classList.add('hidden'); $('contentBody').innerHTML = ''; contentView = ''; }
+function openBriefing(){
+  contentView = 'brief';
+  const b = contentData.briefing;
+  $('contentBack').classList.add('hidden');
+  $('contentTitle').textContent = (b && b.title) || 'Briefing';
+  $('contentBody').innerHTML = b ? contentBlock(b) : '<div class="note">No briefing at the moment.</div>';
+  try{ localStorage.setItem(LS_BRSEEN, briefStamp()); }catch(e){}
+  updateBriefDot();
+  showContent();
+  syncContent();
+}
+function openTrainingList(){
+  contentView = 'list';
+  $('contentBack').classList.add('hidden');
+  $('contentTitle').textContent = 'Training';
+  const t = contentData.training || [];
+  $('contentBody').innerHTML = t.length ? t.map((x, i) => '<button class="citem" data-i="' + i + '"><span>' + esc(x.title) + '</span><span>&rsaquo;</span></button>').join('') : '<div class="note">No training items yet.</div>';
+  $('contentBody').querySelectorAll('.citem').forEach(b => b.addEventListener('click', () => openTrainingItem(Number(b.getAttribute('data-i')))));
+  showContent();
+}
+function openTrainingItem(i){
+  const x = (contentData.training || [])[i];
+  if(!x) return;
+  contentView = 'item';
+  $('contentBack').classList.remove('hidden');
+  $('contentTitle').textContent = x.title;
+  $('contentBody').innerHTML = contentBlock(x);
+  $('contentOverlay').scrollTop = 0;
+  $('contentOverlay').dataset.id = x.id;
+}
+function refreshContentView(){
+  // keep what the person is looking at, unless it was removed
+  if(contentView === 'brief'){ const sc = $('contentOverlay').scrollTop; openBriefing_noSync(); $('contentOverlay').scrollTop = sc; }
+  else if(contentView === 'list') openTrainingList();
+  else if(contentView === 'item'){
+    const id = $('contentOverlay').dataset.id;
+    const i = (contentData.training || []).findIndex(x => x.id === id);
+    if(i < 0) openTrainingList();
+  }
+}
+function openBriefing_noSync(){
+  const b = contentData.briefing;
+  $('contentTitle').textContent = (b && b.title) || 'Briefing';
+  $('contentBody').innerHTML = b ? contentBlock(b) : '<div class="note">No briefing at the moment.</div>';
+  try{ localStorage.setItem(LS_BRSEEN, briefStamp()); }catch(e){}
+  updateBriefDot();
+}
+$('briefBtn').addEventListener('click', openBriefing);
+$('trainBtn').addEventListener('click', () => { openTrainingList(); syncContent(); });
+$('contentClose').addEventListener('click', closeContent);
+$('contentBack').addEventListener('click', openTrainingList);
+setInterval(syncContent, 5 * 60 * 1000);
 
 /* ================= Boot ================= */
 function init(){
