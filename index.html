@@ -246,6 +246,7 @@ const LS_LOG = 'onboardpatrol_log';
 const LS_TAGS = 'onboardpatrol_tags';
 const LS_TEAMS = 'onboardpatrol_teams';
 const LS_PLAN = 'onboardpatrol_plan';
+const LS_PLANHOL = 'onboardpatrol_planhol';
 const LS_NOTICES = 'onboardpatrol_notices';
 const LS_ACKS = 'onboardpatrol_acks';
 const LS_ACKQ = 'onboardpatrol_ackq';
@@ -715,7 +716,10 @@ setInterval(() => { if(navigator.onLine){ syncTags(); syncPlan(); } }, 5 * 60 * 
 /* ================= Patrol plan ================= */
 let planRows = [];
 let planGroup = '';
+let planHol = [];
 function loadPlanCache(){
+  planHol = loadJSON(LS_PLANHOL, []);
+  if(!Array.isArray(planHol)) planHol = [];
   const c = loadJSON(LS_PLAN, {});
   planRows = (c.team === teamCode() && Array.isArray(c.rows)) ? c.rows : [];
   planGroup = '';
@@ -731,6 +735,7 @@ async function syncPlan(){
     if(!Array.isArray(arr)) return false;
     planRows = arr;
     saveJSON(LS_PLAN, { team: team, rows: arr });
+    try{ const h = await fetchJSON('format=planholidays'); if(Array.isArray(h)){ planHol = h; saveJSON(LS_PLANHOL, h); } }catch(e){}
     if(!$('planScreen').classList.contains('hidden')) renderPlan();
     return true;
   }catch(e){ return false; }
@@ -756,15 +761,42 @@ function shiftDayCode(){
   if(d.getHours() < 6) d.setDate(d.getDate() - 1);
   return ['SUN','MON','TUE','WED','THU','FRI','SAT'][d.getDay()];
 }
-function planGroups(){
-  const order = [];
-  planRows.forEach(r => { if(order.indexOf(r.days) < 0) order.push(r.days); });
-  return order;
+// A plan is identified by its id (older backends only send the days, which then act as the id).
+function planKey(r){ return r.plan || r.days; }
+function shiftIso(){
+  const d = new Date();
+  if(d.getHours() < 6) d.setDate(d.getDate() - 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
+function dmy(iso){ return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : ''; }
+// One entry per plan: {key, name, kind, days, df, dt}. Finished extraordinary plans are hidden.
+function planGroups(){
+  const order = [], seen = {};
+  const iso = shiftIso();
+  planRows.forEach(r => {
+    const k = planKey(r);
+    if(seen[k]) return;
+    seen[k] = true;
+    if(r.kind === 'extra' && r.dt && r.dt < iso) return;
+    order.push({ key: k, name: r.name || '', kind: r.kind || 'regular', days: r.days || 'DEFAULT', df: r.df || '', dt: r.dt || '' });
+  });
+  return order.filter(g => g.kind !== 'extra').concat(order.filter(g => g.kind === 'extra'));
+}
+function planLabel(g){
+  if(g.kind === 'extra') return (g.name || 'Extraordinary') + ' ' + dmy(g.df) + ' - ' + dmy(g.dt);
+  return g.name || daysLabel(g.days);
+}
+// What the team follows today: an active extraordinary plan replaces the normal one;
+// otherwise the plan for today's weekday (a bank holiday plan wins on a bank holiday), then "every day".
 function todaysGroup(groups){
-  const day = shiftDayCode();
-  const hit = groups.find(g => g !== 'DEFAULT' && g.split(',').indexOf(day) >= 0);
-  return hit || (groups.indexOf('DEFAULT') >= 0 ? 'DEFAULT' : (groups[0] || ''));
+  const iso = shiftIso(), day = shiftDayCode(), bh = planHol.indexOf(iso) >= 0;
+  const has = (g, c) => g.days.split(',').indexOf(c) >= 0;
+  const everyDay = g => g.days === 'DEFAULT';
+  const ext = groups.find(g => g.kind === 'extra' && g.df <= iso && iso <= g.dt && (everyDay(g) || has(g, day) || (bh && has(g, 'BH'))));
+  if(ext) return ext.key;
+  const reg = groups.filter(g => g.kind !== 'extra');
+  const hit = (bh && reg.find(g => !everyDay(g) && has(g, 'BH'))) || reg.find(g => !everyDay(g) && has(g, day)) || reg.find(everyDay);
+  return hit ? hit.key : (reg[0] || groups[0] || { key: '' }).key;
 }
 function hhmm(t){ const m = /^(\d{2}):(\d{2})$/.exec(t || ''); return m ? Number(m[1]) * 60 + Number(m[2]) : null; }
 // Minutes on one continuous timeline, so 00:07 after 23:51 counts as later.
@@ -787,11 +819,11 @@ function renderPlan(){
     return;
   }
   const today = todaysGroup(groups);
-  if(groups.indexOf(planGroup) < 0) planGroup = today;
+  if(!groups.some(g => g.key === planGroup)) planGroup = today;
   $('planTabs').innerHTML = groups.length > 1 ? groups.map(g =>
-    '<button class="tab' + (g === planGroup ? ' on' : '') + '" data-g="' + esc(g) + '">' + esc(daysLabel(g)) + (g === today ? ' (today)' : '') + '</button>').join('') : '';
+    '<button class="tab' + (g.key === planGroup ? ' on' : '') + '" data-g="' + esc(g.key) + '">' + esc(planLabel(g)) + (g.key === today ? ' (today)' : '') + '</button>').join('') : '';
   [...$('planTabs').querySelectorAll('[data-g]')].forEach(b => b.onclick = () => { planGroup = b.getAttribute('data-g'); renderPlan(); });
-  const rows = planRows.filter(r => r.days === planGroup);
+  const rows = planRows.filter(r => planKey(r) === planGroup);
   const times = timeline(rows);
   let now = null;
   if(planGroup === today){
