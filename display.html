@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BVN Connolly - On Duty</title>
+<meta name="theme-color" content="#0B1B2E">
+<style>
+  :root { --s: 1; --bg:#0B1B2E; --card:#12294A; --line:#24426B; --ink:#F4F8FD; --sub:#9FB4CF; --acc:#4DA3FF; --ok:#4ADE80; --bad:#F87171; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; overflow: hidden; }
+  #app { height: 100%; display: flex; flex-direction: column; padding: 1.4vh 1.6vw; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 2vw; border-bottom: 2px solid var(--line); padding-bottom: 1vh; }
+  h1 { margin: 0; font-size: 3.4vh; letter-spacing: .5px; }
+  .day { font-size: 2.6vh; color: var(--sub); }
+  .clock { font-size: 4.4vh; font-weight: 800; font-variant-numeric: tabular-nums; }
+  #grid { flex: 1; min-height: 0; overflow: hidden; display: grid; gap: 1.2vh 1vw; padding-top: 1.4vh; grid-template-columns: repeat(auto-fit, minmax(calc(300px * var(--s)), 1fr)); align-content: start; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: calc(14px * var(--s)) calc(18px * var(--s)); min-width: 0; }
+  .card.empty { opacity: .45; }
+  .team { font-size: calc(30px * var(--s)); font-weight: 800; line-height: 1.1; color: var(--acc); }
+  .code { font-size: calc(15px * var(--s)); color: var(--sub); font-weight: 700; margin-left: 8px; }
+  .post { font-size: calc(15px * var(--s)); color: var(--sub); margin-top: 2px; }
+  .names { margin-top: calc(8px * var(--s)); }
+  .names div { font-size: calc(27px * var(--s)); font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+  .names small { display: block; font-size: calc(16px * var(--s)); font-weight: 700; color: var(--ok); letter-spacing: .3px; }
+  .none { font-size: calc(20px * var(--s)); color: var(--sub); font-style: italic; margin-top: calc(8px * var(--s)); }
+  footer { display: flex; justify-content: space-between; align-items: center; color: var(--sub); font-size: 1.8vh; padding-top: .8vh; }
+  .dot { display: inline-block; width: 1.2vh; height: 1.2vh; border-radius: 50%; background: var(--ok); margin-right: .6vw; }
+  .dot.bad { background: var(--bad); }
+  button { background: transparent; color: var(--sub); border: 1px solid var(--line); border-radius: 8px; padding: .5vh 1vw; font-size: 1.8vh; cursor: pointer; }
+  #lock { position: fixed; inset: 0; background: var(--bg); display: none; align-items: center; justify-content: center; flex-direction: column; gap: 14px; z-index: 5; }
+  #lock.show { display: flex; }
+  #lock input { font-size: 28px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); text-align: center; width: 260px; }
+  #lock .go { font-size: 22px; padding: 10px 28px; color: #fff; background: #1E5FBF; border: 0; }
+  #err { color: var(--bad); min-height: 22px; }
+  .big { font-size: 5vh; text-align: center; color: var(--sub); margin-top: 20vh; grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div><h1>BVN Connolly - On Duty</h1><div class="day" id="day"></div></div>
+    <div class="clock" id="clock"></div>
+  </header>
+  <div id="grid"></div>
+  <footer><span><span class="dot" id="dot"></span><span id="status">Loading...</span></span><span><button id="fs">Full screen</button> <button id="chg">Change PIN</button></span></footer>
+</div>
+<div id="lock">
+  <div style="font-size:30px;font-weight:800;">BVN Connolly - On Duty</div>
+  <div style="color:var(--sub);">Supervisor PIN (only asked once on this screen)</div>
+  <input id="pin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN">
+  <button class="go" id="go">Open</button>
+  <div id="err"></div>
+</div>
+<script>
+(function () {
+  // Onboard Patrol backend. The PIN is not stored here: it is typed once and kept only in this screen's browser.
+  var URL_ = 'https://script.google.com/macros/s/AKfycbzyF9G_x34LnFZwufDixy3yff7WdMxnVlfeohSYnmlN8Dg025mdryAWMy1K-z0UA6dPTw/exec';
+  var KEY = 'op_display_pin', REFRESH_MS = 60000;
+  // Fixed equipment: the first name on a team carries Bodycam 1 + the phone, the second Bodycam 2 + the key.
+  var ROLES = ['Bodycam 1 + Phone', 'Bodycam 2 + Key'];
+  var $ = function (id) { return document.getElementById(id); };
+  var pin = '', teams = [], crew = null, lastOk = 0, timer = null;
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function norm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+
+  function tick() {
+    var d = new Date();
+    $('clock').textContent = d.toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Dublin' });
+    var shown = crew && crew.date ? new Date(crew.date + 'T12:00:00Z') : d;
+    $('day').textContent = shown.toLocaleDateString('en-IE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: crew && crew.date ? 'UTC' : 'Europe/Dublin' });
+  }
+  function getJSON(q) {
+    return fetch(URL_ + '?' + q, { cache: 'no-store' }).then(function (r) { return r.json(); });
+  }
+  // Make the text as big as possible while everything still fits on the screen without scrolling.
+  function fit() {
+    var g = $('grid'), root = document.documentElement;
+    function overflows() {
+      var last = g.lastElementChild;
+      if (!last) return false;
+      return last.getBoundingClientRect().bottom > g.getBoundingClientRect().bottom + 1;
+    }
+    var s = 0.4;
+    root.style.setProperty('--s', s);
+    while (s < 2 && true) {
+      root.style.setProperty('--s', Math.round((s + 0.05) * 100) / 100);
+      if (overflows()) break;
+      s = Math.round((s + 0.05) * 100) / 100;
+    }
+    root.style.setProperty('--s', s);
+  }
+  function render() {
+    var rows = (crew && crew.rows) || [];
+    var used = {}, cards = '';
+    teams.forEach(function (t) {
+      var mine = rows.filter(function (r) { return norm(r.team) === norm(t.code); });
+      mine.forEach(function (r) { used[r.post + '|' + r.team] = true; });
+      var names = [], posts = [];
+      mine.forEach(function (r) { (r.names || []).forEach(function (n) { if (names.indexOf(n) < 0) names.push(n); }); if (r.post && posts.indexOf(r.post) < 0) posts.push(r.post); });
+      cards += '<div class="card' + (names.length ? '' : ' empty') + '"><div><span class="team">' + esc(t.name) + '</span><span class="code">' + esc(t.code) + '</span></div>' +
+        (posts.length && norm(posts.join('')) !== norm(t.name) ? '<div class="post">' + esc(posts.join(' / ')) + '</div>' : '') +
+        (names.length ? '<div class="names">' + names.map(function (n, i) { return '<div>' + esc(n) + (ROLES[i] ? '<small>' + ROLES[i] + '</small>' : '') + '</div>'; }).join('') + '</div>' : '<div class="none">No crew assigned</div>') + '</div>';
+    });
+    rows.filter(function (r) { return !used[r.post + '|' + r.team] && (r.names || []).length; }).forEach(function (r) {
+      cards += '<div class="card"><div><span class="team">' + esc(r.post || 'Other') + '</span></div><div class="names">' + r.names.map(function (n) { return '<div>' + esc(n) + '</div>'; }).join('') + '</div></div>';
+    });
+    $('grid').innerHTML = cards || '<div class="big">No teams yet</div>';
+    fit();
+  }
+  function setStatus(ok, msg) {
+    $('dot').className = 'dot' + (ok ? '' : ' bad');
+    $('status').textContent = msg;
+  }
+  function load() {
+    Promise.all([getJSON('format=teams'), getJSON('format=crewcheck&pin=' + encodeURIComponent(pin))]).then(function (res) {
+      var t = res[0], c = res[1];
+      if (c && c.error) { lsDel(KEY); pin = ''; showLock('Incorrect PIN'); return; }
+      if (Array.isArray(t)) teams = t;
+      crew = c; lastOk = Date.now();
+      tick(); render();
+      setStatus(true, 'Updated ' + new Date().toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Dublin' }) + ' - refreshes every minute');
+    }).catch(function () {
+      setStatus(false, lastOk ? 'No connection - showing the last update (' + new Date(lastOk).toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' }) + ')' : 'No connection');
+    });
+  }
+  function start() {
+    $('lock').classList.remove('show');
+    load();
+    clearInterval(timer);
+    timer = setInterval(load, REFRESH_MS);
+  }
+  function showLock(msg) {
+    clearInterval(timer);
+    $('err').textContent = msg || '';
+    $('pin').value = '';
+    $('lock').classList.add('show');
+    setTimeout(function () { $('pin').focus(); }, 50);
+  }
+  function submit() {
+    var v = $('pin').value.trim();
+    if (!v) return;
+    pin = v; lsSet(KEY, v); start();
+  }
+  $('go').onclick = submit;
+  $('pin').onkeydown = function (e) { if (e.key === 'Enter') submit(); };
+  $('chg').onclick = function () { lsDel(KEY); pin = ''; showLock(''); };
+  $('fs').onclick = function () { var el = document.documentElement; if (el.requestFullscreen) el.requestFullscreen(); };
+  window.addEventListener('resize', fit);
+  setInterval(tick, 15000); tick();
+  pin = lsGet(KEY) || '';
+  if (pin) start(); else showLock('');
+  window.__display = { load: load, render: render, fit: fit };
+})();
+</script>
+</body>
+</html>
