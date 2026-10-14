@@ -29,11 +29,11 @@
   .row { display: grid; grid-template-columns: 1.1fr 1.45fr 1.45fr; min-width: 0; border-top: 2px dashed #4a4943; }
   .row:first-child { border-top: 0; }
   .row.empty { opacity: .4; }
-  .tm { background: #1f1f1d; color: var(--ink); padding: calc(8px * var(--s)) calc(12px * var(--s)); display: flex; flex-direction: column; justify-content: center; min-width: 0; }
-  .row.empty .tm { background: #3a3a37; }
+  .tm { background: #000; color: var(--ink); padding: calc(8px * var(--s)) calc(12px * var(--s)); display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+  .row.empty .tm { background: #000; }
   .team { font-family: "Doto", "Courier New", monospace; font-size: calc(21px * var(--s)); font-weight: 800; line-height: 1.05; text-transform: uppercase; letter-spacing: .03em; overflow-wrap: break-word; hyphens: manual; }
   .code { font: 700 calc(14px * var(--s)) "Courier New", Courier, monospace; letter-spacing: .12em; opacity: .85; margin-top: calc(2px * var(--s)); }
-  .cell { display: flex; align-items: center; gap: calc(8px * var(--s)); padding: calc(6px * var(--s)) calc(8px * var(--s)); border-left: 2px solid #4a4943; min-width: 0; }
+  .cell { background: #1f1f1d; display: flex; align-items: center; gap: calc(8px * var(--s)); padding: calc(6px * var(--s)) calc(8px * var(--s)); border-left: 2px solid #4a4943; min-width: 0; }
   .plate { flex: none; text-align: center; font: 700 calc(15px * var(--s)) "Doto", "Courier New", monospace; letter-spacing: .08em; color: var(--sub); border: 1px solid #4a4943; padding: calc(2px * var(--s)) calc(6px * var(--s)); }
   .plate small { display: block; font: 700 calc(8px * var(--s)) "Courier New", monospace; letter-spacing: .12em; margin-top: calc(1px * var(--s)); text-transform: uppercase; opacity: .8; }
   .who { min-width: 0; }
@@ -42,7 +42,7 @@
   .nt::before { content: "\25B6\00a0"; font-size: .7em; }
   .ex { font-size: calc(15px * var(--s)); color: var(--sub); text-transform: uppercase; margin-top: calc(3px * var(--s)); overflow-wrap: anywhere; }
   .ex i { color: #ff4a42; font-style: normal; }
-  .none { font: 700 calc(15px * var(--s)) "Courier New", Courier, monospace; color: var(--sub); text-transform: uppercase; letter-spacing: .14em; display: flex; align-items: center; padding: 0 calc(12px * var(--s)); grid-column: 2 / 4; border-left: 2px solid #4a4943; }
+  .none { background: #1f1f1d; font: 700 calc(15px * var(--s)) "Courier New", Courier, monospace; color: var(--sub); text-transform: uppercase; letter-spacing: .14em; display: flex; align-items: center; padding: 0 calc(12px * var(--s)); grid-column: 2 / 4; border-left: 2px solid #4a4943; }
   .dash { color: #4a4943; font: 700 calc(20px * var(--s)) "Courier New", monospace; }
   footer { display: flex; justify-content: space-between; align-items: center; color: var(--sub); font: 700 1.7vh "Courier New", Courier, monospace; text-transform: uppercase; letter-spacing: .08em; padding-top: .8vh; }
   .dot { display: inline-block; width: 1.2vh; height: 1.2vh; background: #4ade80; margin-right: .6vw; }
@@ -57,6 +57,34 @@
   .warn { margin-top: 1.2vh; border: 3px solid var(--red); background: #2a0907; padding: calc(10px * var(--s)) calc(16px * var(--s)); }
   .warn b { font-size: calc(22px * var(--s)); color: #ff4a42; text-transform: uppercase; letter-spacing: .06em; }
   .warn small { display: block; color: var(--sub); margin-top: 4px; }
+  /* Phone / narrow screen: one block under the other, the page scrolls */
+  @media (max-width: 800px) {
+    html, body { height: auto; min-height: 100%; overflow: auto; }
+    #app { height: auto; min-height: 100vh; padding: 10px; }
+    header { flex-direction: column; }
+    .ttl { padding: 10px 12px; }
+    h1 { font-size: 6.2vw; }
+    .day { font-size: 3.6vw; }
+    .clock { font-size: 11vw; padding: 6px 12px; border-left: 0; border-top: 3px solid var(--line); justify-content: center; }
+    #grid { display: flex; flex-direction: column; overflow: visible; gap: 12px; padding-top: 12px; }
+    .half { overflow: visible; display: block; }
+    .row { grid-template-columns: 1fr; }
+    .tm { flex-direction: row; align-items: baseline; justify-content: space-between; }
+    .cell { border-left: 0; border-top: 1px dashed #4a4943; }
+    .none { grid-column: 1; border-left: 0; padding: 10px 12px; }
+    .nm { max-width: 100%; }
+    .dashcell { display: none; }
+    footer { flex-direction: column; gap: 8px; align-items: flex-start; font-size: 12px; padding-bottom: 12px; }
+  }
+  /* Announcements: scrolling line (left to right) and full-screen pop-up */
+  #ticker { display: none; flex: none; overflow: hidden; white-space: nowrap; margin-top: 1vh; border: 3px solid var(--red); background: #000; }
+  #ticker.on { display: block; }
+  #tk { display: inline-block; padding: .9vh 0; font: 800 4vh/1.2 "Doto", "Courier New", monospace; letter-spacing: .04em; text-transform: uppercase; color: var(--ink); will-change: transform; }
+  #pop { display: none; position: fixed; inset: 5vh 4vw; z-index: 15; background: #000; border: 6px solid var(--red); box-shadow: 0 0 0 100vmax rgba(0,0,0,.82); flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 3vh 4vw; overflow: hidden; }
+  #pop.on { display: flex; }
+  #popLabel { font: 800 3.4vh "Doto", "Courier New", monospace; letter-spacing: .3em; color: #ff4a42; text-transform: uppercase; margin-bottom: 3vh; }
+  #popText { font-family: "Doto", "Courier New", monospace; font-weight: 800; text-transform: uppercase; line-height: 1.15; letter-spacing: .03em; color: var(--ink); max-width: 100%; max-height: 100%; overflow-wrap: anywhere; }
+  @media (max-width: 800px) { #tk { font-size: 20px; } #pop { inset: 3vh 3vw; } }
 </style>
 </head>
 <body>
@@ -67,8 +95,10 @@
   </header>
   <div id="warnbox"></div>
   <div id="grid"></div>
+  <div id="ticker"><div id="tk"></div></div>
   <footer><span><span class="dot" id="dot"></span><span id="status">Loading...</span></span><span><button id="fs">Full screen</button> <button id="chg">Change PIN</button></span></footer>
 </div>
+<div id="pop"><div id="popLabel">Announcement</div><div id="popText"></div></div>
 <div id="lock">
   <div style="font-size:30px;font-weight:800;">BVN Connolly - On Duty</div>
   <div style="color:var(--sub);">Supervisor PIN (only asked once on this screen)</div>
@@ -104,13 +134,14 @@
   // Make the text as big as possible while everything still fits on the screen without scrolling.
   function fit() {
     var halves = [].slice.call(document.querySelectorAll('.half')), root = document.documentElement;
+    var narrow = !!(window.matchMedia && window.matchMedia('(max-width: 800px)').matches);
     function overflows() {
-      if (halves.some(function (h) { return h.scrollHeight > h.clientHeight + 1; })) return true;
+      if (!narrow && halves.some(function (h) { return h.scrollHeight > h.clientHeight + 1; })) return true;
       return [].some.call(document.querySelectorAll('.who'), function (w) { return w.scrollWidth > w.clientWidth + 1; });
     }
     var s = 0.4;
     root.style.setProperty('--s', s);
-    while (s < 2.2) {
+    while (s < (narrow ? 1.15 : 2.2)) {
       root.style.setProperty('--s', Math.round((s + 0.05) * 100) / 100);
       if (overflows()) break;
       s = Math.round((s + 0.05) * 100) / 100;
@@ -119,7 +150,7 @@
     while (s > 0.3 && overflows()) { s = Math.round((s - 0.05) * 100) / 100; root.style.setProperty('--s', s); }
   }
   function cell(p, i, code) {
-    if (!p) return '<div class="cell"><span class="dash">&mdash;</span></div>';
+    if (!p) return '<div class="cell dashcell"><span class="dash">&mdash;</span></div>';
     return '<div class="cell"><div class="plate">' + esc(String(code || '').toUpperCase() + (i + 1)) + '<small>' + esc(ROLES[i]) + '</small></div><div class="who"><div class="nm">' + esc(p.name) + '</div>' + (p.note ? '<div class="nt">' + esc(p.note) + '</div>' : '') + '</div></div>';
   }
   function row(title, code, ppl) {
@@ -199,7 +230,59 @@
   setInterval(tick, 15000); tick();
   pin = lsGet(KEY) || '';
   if (pin) start(); else showLock('');
-  window.__display = { load: load, render: render, fit: fit };
+
+  /* ---- Announcements (public feed; no PIN) ---- */
+  var annSig = '', tickAnim = null, pops = [], popIdx = 0, popT = null, popSig = '';
+  function showTicker(texts) {
+    var box = $('ticker'), tk = $('tk');
+    if (!texts.length) { if (tickAnim) tickAnim.cancel(); tickAnim = null; box.classList.remove('on'); tk.textContent = ''; fit(); return; }
+    box.classList.add('on');
+    tk.textContent = texts.join('      //      ');
+    fit();
+    if (tickAnim) tickAnim.cancel();
+    var w = tk.scrollWidth, cw = box.clientWidth, speed = Math.max(90, cw / 14);   // px per second
+    if (!tk.animate) return;
+    // moves from the left edge to the right edge
+    tickAnim = tk.animate([{ transform: 'translateX(' + (-w) + 'px)' }, { transform: 'translateX(' + cw + 'px)' }], { duration: (w + cw) / speed * 1000, iterations: Infinity });
+  }
+  function fitPop() {
+    var t = $('popText'), box = $('pop'), fs = Math.round(window.innerHeight * 0.2);
+    t.style.fontSize = fs + 'px';
+    while (fs > 14 && (t.scrollHeight > box.clientHeight * 0.72 || t.scrollWidth > box.clientWidth * 0.94)) { fs = Math.round(fs * 0.93); t.style.fontSize = fs + 'px'; }
+  }
+  function hidePop() { $('pop').classList.remove('on'); }
+  function popCycle() {
+    clearTimeout(popT);
+    if (!pops.length) { hidePop(); return; }
+    var it = pops[popIdx % pops.length];
+    $('popText').textContent = it.text;
+    $('pop').classList.add('on');
+    fitPop();
+    if (pops.length === 1 && !it.gapSec) return;      // single pop-up with no pause: stays on
+    popT = setTimeout(function () {
+      hidePop();
+      popIdx++;
+      popT = setTimeout(popCycle, Math.max(0, (it.gapSec || 0)) * 1000);
+    }, Math.max(3, it.showSec || 15) * 1000);
+  }
+  function applyAnnouncements(items) {
+    var ticks = items.filter(function (a) { return a.mode !== 'popup'; });
+    var pp = items.filter(function (a) { return a.mode === 'popup'; });
+    var ts = JSON.stringify(ticks.map(function (a) { return a.text; }));
+    if (ts !== annSig) { annSig = ts; showTicker(ticks.map(function (a) { return a.text; })); }
+    var ps = JSON.stringify(pp.map(function (a) { return [a.id, a.text, a.showSec, a.gapSec]; }));
+    if (ps !== popSig) { popSig = ps; pops = pp; popIdx = 0; popCycle(); }
+  }
+  var annLast = [];
+  function loadAnn() {
+    getJSON('format=announcements').then(function (r) {
+      if (r && Array.isArray(r.items)) { annLast = r.items; applyAnnouncements(annLast); }
+    }).catch(function () {});
+  }
+  setInterval(loadAnn, 30000);
+  window.addEventListener('resize', function () { if ($('pop').classList.contains('on')) fitPop(); annSig = ''; applyAnnouncements(annLast); });
+  loadAnn();
+  window.__display = { loadAnn: loadAnn,  load: load, render: render, fit: fit };
 })();
 </script>
 </body>

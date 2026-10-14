@@ -20,6 +20,10 @@
   .sub { color: var(--sub); font-size: 14px; margin-bottom: 20px; text-align: center; }
   .card { background: var(--card); border-radius: 16px; padding: 20px; width: 100%; max-width: 420px; margin-bottom: 16px; }
   .hidden { display: none !important; }
+  #annBar { margin: 8px 0 12px; border-left: 5px solid #E5342A; background: #fff; border-radius: 10px; padding: 10px 12px; box-shadow: 0 1px 4px rgba(15,23,42,.12); }
+  #annBar .at { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #E5342A; margin-bottom: 4px; }
+  #annBar .ai { font-size: 15px; font-weight: 600; line-height: 1.35; color: #0F172A; padding: 3px 0; }
+  #annBar .ai + .ai { border-top: 1px dashed #D5DCE6; margin-top: 3px; padding-top: 6px; }
   label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; margin-top: 14px; }
   input, select {
     width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--line);
@@ -128,6 +132,7 @@
 
 <div class="sub" style="letter-spacing:.14em;font-weight:700;margin-bottom:2px;">CONNOLLY SITE</div>
 <h1 id="appTitle">Onboard Patrol</h1>
+<div id="annBar" class="hidden"></div>
 
 <!-- SETUP: shown once on each phone -->
 <div class="card hidden" id="setupScreen">
@@ -935,6 +940,27 @@ function loadNoticeCache(){
 }
 setInterval(() => { pollNotices(); }, 45 * 1000);
 document.addEventListener('visibilitychange', () => { if(!document.hidden) pollNotices(); });
+
+/* ================= Announcements from the supervisor (also shown on the wall display) ================= */
+const LS_ANN = 'onboardpatrol_ann';
+function renderAnn(items){
+  const box = $('annBar');
+  if(!items || !items.length){ box.classList.add('hidden'); box.innerHTML = ''; return; }
+  box.innerHTML = '<div class="at">Announcement</div>' + items.map(a => '<div class="ai">' + String(a.text).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) + '</div>').join('');
+  box.classList.remove('hidden');
+}
+async function pollAnn(){
+  try{
+    if(!navigator.onLine) throw new Error('offline');
+    const r = await fetchJSON('format=announcements');
+    if(r && Array.isArray(r.items)){ saveJSON(LS_ANN, r.items); renderAnn(r.items); return; }
+  }catch(e){}
+}
+renderAnn(loadJSON(LS_ANN, []));
+pollAnn();
+setInterval(pollAnn, 60 * 1000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden) pollAnn(); });
+window.addEventListener('online', pollAnn);
 
 /* ================= Briefing and Training ================= */
 const LS_CONTENT = 'onboardpatrol_content';
