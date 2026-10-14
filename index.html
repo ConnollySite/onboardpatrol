@@ -103,6 +103,9 @@
   #contentOverlay .cmedia .frame { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: #000; }
   #contentOverlay .cmedia iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
   #contentOverlay a.ext { display: block; text-align: center; padding: 14px; border-radius: 10px; background: var(--line); color: #fff; text-decoration: none; font-weight: 600; }
+  #contentOverlay .emg { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--card); border-radius: 12px; padding: 14px; margin-top: 10px; }
+  #contentOverlay .emg .en { font-size: 17px; font-weight: 700; } #contentOverlay .emg .eo { font-size: 13px; color: var(--sub); margin-top: 2px; }
+  #contentOverlay .emg a.call { flex: none; background: #E5342A; color: #fff; text-decoration: none; font-weight: 800; font-size: 17px; padding: 12px 14px; border-radius: 10px; white-space: nowrap; }
   #contentOverlay .citem { text-align: left; background: var(--card); margin-top: 10px; display: flex; justify-content: space-between; }
   #noticeOverlay { position: fixed; inset: 0; z-index: 100; background: #7c2d12; overflow-y: auto; display: flex; align-items: flex-start; justify-content: center; padding: calc(16px + env(safe-area-inset-top)) 14px calc(24px + env(safe-area-inset-bottom)); }
   #noticeOverlay .nbox { width: 100%; max-width: 480px; }
@@ -187,6 +190,7 @@
     <button class="planbtn" id="briefBtn">Briefing<span class="newdot hidden" id="briefDot"></span></button>
     <button class="planbtn" id="trainBtn">Training</button>
   </div>
+  <button class="planbtn" id="emgBtn" style="border-color:#E5342A;margin-top:10px;">Emergency Numbers</button>
   <div class="card">
     <div class="topline">
       <div>
@@ -940,6 +944,36 @@ function loadNoticeCache(){
 }
 setInterval(() => { pollNotices(); }, 45 * 1000);
 document.addEventListener('visibilitychange', () => { if(!document.hidden) pollNotices(); });
+
+/* ================= Emergency Numbers (filled by the supervisor from the dashboard) ================= */
+const LS_EMG = 'onboardpatrol_emergency';
+let emgData = loadJSON(LS_EMG, []);
+async function syncEmergency(){
+  try{
+    if(!navigator.onLine) return;
+    const r = await fetchJSON('format=emergency');
+    if(r && Array.isArray(r.items)){ emgData = r.items; saveJSON(LS_EMG, emgData); }
+  }catch(e){}
+  if(contentView === 'emg') renderEmergency();
+}
+function renderEmergency(){
+  $('contentTitle').textContent = 'Emergency Numbers';
+  $('contentBody').innerHTML = emgData.length ? emgData.map(c =>
+    '<div class="emg"><div><div class="en">' + esc(c.name) + '</div>' + (c.note ? '<div class="eo">' + esc(c.note) + '</div>' : '') + '</div>' +
+    '<a class="call" href="tel:' + esc(String(c.number).replace(/[^0-9+*#]/g, '')) + '">' + esc(c.number) + '</a></div>').join('')
+    : '<div class="note">No emergency numbers have been added yet.</div>';
+}
+function openEmergency(){
+  contentView = 'emg';
+  $('contentBack').classList.add('hidden');
+  renderEmergency();
+  showContent();
+  syncEmergency();
+}
+$('emgBtn').addEventListener('click', openEmergency);
+syncEmergency();
+setInterval(syncEmergency, 10 * 60 * 1000);
+window.addEventListener('online', syncEmergency);
 
 /* ================= Announcements from the supervisor (also shown on the wall display) ================= */
 const LS_ANN = 'onboardpatrol_ann';
