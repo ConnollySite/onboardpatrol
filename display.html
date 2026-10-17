@@ -243,7 +243,7 @@
     var w = tk.scrollWidth, cw = box.clientWidth, speed = Math.max(90, cw / 14);   // px per second
     if (!tk.animate) return;
     // moves from the left edge to the right edge
-    tickAnim = tk.animate([{ transform: 'translateX(' + (-w) + 'px)' }, { transform: 'translateX(' + cw + 'px)' }], { duration: (w + cw) / speed * 1000, iterations: Infinity });
+    tickAnim = tk.animate([{ transform: 'translateX(' + cw + 'px)' }, { transform: 'translateX(' + (-w) + 'px)' }], { duration: (w + cw) / speed * 1000, iterations: Infinity });
   }
   function fitPop() {
     var t = $('popText'), box = $('pop'), fs = Math.round(window.innerHeight * 0.2);
