@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Patrol Timeline</title>
+<link rel="manifest" href="timeline.webmanifest">
+<meta name="theme-color" content="#0F172A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Timeline">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  :root{--bg:#0f172a;--card:#1e293b;--line:#334155;--ink:#f1f5f9;--sub:#94a3b8;--ok:#4ade80;--warn:#fbbf24;--blue:#2563eb;--bad:#f87171;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Roboto,sans-serif;padding:calc(10px + env(safe-area-inset-top)) 12px calc(24px + env(safe-area-inset-bottom));}
+  .top{display:flex;align-items:center;gap:10px;margin:2px 2px 10px;}
+  .top h1{flex:1;font-size:19px;margin:0;}
+  .top button{border:none;background:var(--line);color:var(--ink);font-size:14px;font-weight:700;border-radius:10px;padding:9px 13px;}
+  .clock{font-size:13px;color:var(--sub);margin:0 2px 12px;}
+  .clock b{color:var(--ink);}
+  .team{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:9px;overflow:hidden;}
+  .team.open{border-color:#3b82f6;}
+  .th{display:flex;align-items:center;gap:11px;padding:13px 14px;width:100%;background:none;border:none;color:inherit;text-align:left;font:inherit;}
+  .dot{flex:none;width:12px;height:12px;border-radius:50%;background:#64748b;}
+  .dot.moving{background:var(--ok);box-shadow:0 0 0 4px rgba(74,222,128,.22);}
+  .dot.at{background:var(--warn);box-shadow:0 0 0 4px rgba(251,191,36,.2);}
+  .dot.before{background:#60a5fa;} .dot.done{background:#64748b;}
+  .tn{flex:1;min-width:0;}
+  .tn b{display:block;font-size:17px;}
+  .tn span{display:block;font-size:12.5px;color:var(--sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .car{flex:none;color:var(--sub);font-size:18px;transition:transform .15s;}
+  .team.open .car{transform:rotate(90deg);}
+  .body{display:none;padding:2px 14px 14px;}
+  .team.open .body{display:block;}
+  .plan{font-size:12px;color:var(--sub);margin:0 0 8px;}
+  .stat{font-size:14px;font-weight:700;border-radius:10px;padding:9px 11px;margin-bottom:10px;background:#0b1220;}
+  .stat.moving{color:var(--ok);} .stat.at{color:var(--warn);}
+  .tl{position:relative;margin-left:8px;padding-left:20px;border-left:3px solid var(--line);}
+  .st{position:relative;padding:0 0 15px;}
+  .st:before{content:'';position:absolute;left:-30px;top:3px;width:12px;height:12px;border-radius:50%;background:var(--bg);border:3px solid var(--sub);}
+  .st.past{opacity:.45;}
+  .st.cur:before{background:var(--ok);border-color:var(--ok);box-shadow:0 0 0 5px rgba(74,222,128,.25);}
+  .st.at:before{background:var(--warn);border-color:var(--warn);box-shadow:0 0 0 5px rgba(251,191,36,.22);}
+  .st.next:before{border-color:#60a5fa;}
+  .st .t{font-size:13px;color:var(--sub);font-variant-numeric:tabular-nums;}
+  .st .r{font-size:16px;font-weight:700;margin:2px 0;}
+  .st .i{font-size:13px;color:#cbd5e1;}
+  .badge{display:inline-block;font-size:10.5px;font-weight:800;border-radius:999px;padding:2px 8px;margin-left:8px;color:#052e16;background:var(--ok);}
+  .badge.at{background:var(--warn);color:#422006;} .badge.next{background:#60a5fa;color:#0b1220;}
+  .empty{color:var(--sub);font-size:14px;padding:10px 2px;}
+  .msg{font-size:12px;color:var(--sub);text-align:center;margin-top:12px;}
+</style>
+</head>
+<body>
+<div class="top"><h1>Patrol Timeline</h1><button id="refresh">Refresh</button></div>
+<div class="clock" id="clock">Loading…</div>
+<div id="list"></div>
+<div class="msg" id="msg"></div>
+<script>
+const ENDPOINT = 'https://script.google.com/macros/s/AKfycbzyF9G_x34LnFZwufDixy3yff7WdMxnVlfeohSYnmlN8Dg025mdryAWMy1K-z0UA6dPTw/exec';
+const LS_DATA = 'op_tlm_data', LS_OPEN = 'op_tlm_open';
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function lsGet(k, fb){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; }catch(e){ return fb; } }
+function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+
+let data = lsGet(LS_DATA, { teams: [], plans: {}, hol: [], at: 0 });
+let openTeam = lsGet(LS_OPEN, '');
+let lastKey = {};
+
+async function getJSON(q){ const r = await fetch(ENDPOINT + '?' + q + '&t=' + Date.now()); return await r.json(); }
+async function load(){
+  $('msg').textContent = 'Updating…';
+  try{
+    const teams = await getJSON('format=teams');
+    if(!Array.isArray(teams)) throw new Error('teams');
+    const plans = {};
+    await Promise.all(teams.map(async t => { try{ const p = await getJSON('format=plan&team=' + encodeURIComponent(t.code)); if(Array.isArray(p)) plans[t.code] = p; }catch(e){ plans[t.code] = (data.plans || {})[t.code] || []; } }));
+    let hol = data.hol || [];
+    try{ const h = await getJSON('format=planholidays'); if(Array.isArray(h)) hol = h; }catch(e){}
+    data = { teams: teams.map(t => ({ code: String(t.code), name: String(t.name) })), plans, hol, at: Date.now() };
+    lsSet(LS_DATA, data);
+    $('msg').textContent = '';
+  }catch(e){
+    $('msg').textContent = navigator.onLine ? 'Could not reach the server — showing the last saved data.' : 'Offline — showing the last saved data.';
+  }
+  render(true);
+}
+
+/* ---- Dublin clock ---- */
+function clockNow(){
+  const parts = {};
+  new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Dublin', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date()).forEach(p => { parts[p.type] = p.value; });
+  return { iso: parts.year + '-' + parts.month + '-' + parts.day, min: Number(parts.hour) % 24 * 60 + Number(parts.minute) };
+}
+function dutyIso(c){ if(c.min >= 360) return c.iso; const d = new Date(c.iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); }
+const DOW = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+const dow = iso => DOW[new Date(iso + 'T12:00:00Z').getUTCDay()];
+const hm = m => { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+const dmy = iso => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+
+/* ---- which plan a team follows on a duty day (same rules as the dashboard) ---- */
+function groupsOf(rows){
+  const out = [], seen = {};
+  rows.forEach(r => {
+    const k = r.plan || r.days;
+    if(!seen[k]){ seen[k] = { key: k, name: r.name || '', kind: r.kind || 'regular', days: r.days || 'DEFAULT', df: r.df || '', dt: r.dt || '', steps: [] }; out.push(seen[k]); }
+    seen[k].steps.push(r);
+  });
+  return out;
+}
+function altRuns(g, iso){
+  if(!g.df) return false;
+  const a = Date.UTC(+g.df.slice(0,4), +g.df.slice(5,7) - 1, +g.df.slice(8,10)), b = Date.UTC(+iso.slice(0,4), +iso.slice(5,7) - 1, +iso.slice(8,10));
+  return Math.abs(Math.round((b - a) / 86400000)) % 2 === 0;
+}
+function pickPlan(groups, iso){
+  const day = dow(iso), bh = (data.hol || []).indexOf(iso) >= 0;
+  const set = g => (g.days === 'DEFAULT' || g.days === 'NONE' || !g.days) ? (g.kind === 'extra' ? DOW.concat(['BH']) : []) : g.days.split(',');
+  let g = groups.find(x => x.kind === 'extra' && x.df <= iso && iso <= x.dt && (set(x).indexOf(day) >= 0 || (bh && set(x).indexOf('BH') >= 0)));
+  if(g) return g;
+  g = groups.find(x => x.kind === 'alt' && altRuns(x, iso));
+  if(g) return g;
+  const regs = groups.filter(x => x.kind !== 'extra' && x.kind !== 'alt');
+  if(bh){ g = regs.find(x => set(x).indexOf('BH') >= 0); if(g) return g; }
+  g = regs.find(x => set(x).indexOf(day) >= 0); if(g) return g;
+  return regs.find(x => x.days === 'DEFAULT') || null;
+}
+
+/* ---- times and state ---- */
+const tmin = t => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t || '')); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+function times(steps){
+  const out = []; let last = null, add = 0;
+  steps.forEach(s => {
+    const a = tmin(s.dep), b = tmin(s.arr);
+    const st = a != null ? a : b, en = b != null ? b : a;
+    if(st == null){ out.push(null); return; }
+    let x = st + add;
+    if(last != null && x < last - 120){ add += 1440; x = st + add; }
+    let y = en + add;
+    if(y < x){ add += 1440; y = en + add; }
+    last = y; out.push({ s: x, e: y });
+  });
+  return out;
+}
+function stateOf(steps, T, nowMin){
+  let first = -1;
+  for(let k = 0; k < T.length; k++){ if(T[k]){ first = k; break; } }
+  if(first < 0) return { cur: -1, next: -1, kind: 'none', text: 'No times in this plan' };
+  const t0 = T[first].s; let now = nowMin;
+  while(now < t0 - 240) now += 1440;
+  while(now >= t0 + 1200) now -= 1440;
+  let cur = -1, lastTimed = first, nextI = -1;
+  for(let k = 0; k < T.length; k++){ if(!T[k]) continue; lastTimed = k; if(T[k].s <= now) cur = k; }
+  if(cur < 0) return { cur: -1, next: first, kind: 'before', text: 'Starts at ' + hm(T[first].s) + (steps[first].from ? ' from ' + steps[first].from : '') };
+  const s = steps[cur];
+  if(T[cur].e > T[cur].s && now <= T[cur].e) return { cur, next: -1, kind: 'moving', text: 'On the move: ' + (s.from || '') + (s.to ? ' → ' + s.to : '') + (s.arr ? ' (arr ' + s.arr + ')' : '') };
+  if(cur === lastTimed) return { cur, next: -1, kind: 'done', text: 'Patrol finished' + (s.to ? ' at ' + s.to : '') };
+  for(let k = cur + 1; k < T.length; k++){ if(T[k]){ nextI = k; break; } }
+  const nx = steps[nextI];
+  return { cur, next: nextI, kind: 'at', text: 'At ' + (s.to || s.from || '-') + ' · next departure ' + (nx.dep || nx.arr || '') };
+}
+function stepHtml(s, i, st){
+  let cls = 'st', badge = '';
+  if(st.cur >= 0 && (i < st.cur || st.kind === 'done')) cls += ' past';
+  else if(st.cur >= 0 && i === st.cur && st.kind === 'moving'){ cls += ' cur'; badge = '<span class="badge">Now</span>'; }
+  else if(st.cur >= 0 && i === st.cur && st.kind === 'at'){ cls += ' at'; badge = '<span class="badge at">Here</span>'; }
+  else if(i === st.next){ cls += ' next'; badge = '<span class="badge next">Next</span>'; }
+  const time = (s.dep && s.arr) ? s.dep + ' → ' + s.arr : (s.dep || s.arr || '');
+  const route = (s.from ? '<b>' + esc(s.from) + '</b>' : '') + (s.to ? ' → <b>' + esc(s.to) + '</b>' : '');
+  return '<div class="' + cls + '"><div class="t">' + esc(time) + badge + '</div>' + (route ? '<div class="r">' + route + '</div>' : '') + (s.instr ? '<div class="i">' + esc(s.instr) + '</div>' : '') + '</div>';
+}
+
+/* ---- screen ---- */
+function render(force){
+  const c = clockNow(), duty = dutyIso(c), bh = (data.hol || []).indexOf(duty) >= 0;
+  $('clock').innerHTML = '<b>' + hm(c.min) + '</b> · duty day ' + dmy(duty) + ' ' + dow(duty) + (bh ? ' (bank holiday)' : '');
+  if(!data.teams.length){ $('list').innerHTML = '<div class="empty">Loading teams…</div>'; return; }
+  const items = data.teams.map(t => {
+    const g = pickPlan(groupsOf((data.plans || {})[t.code] || []), duty);
+    const steps = g ? g.steps : [], T = times(steps);
+    const st = g ? stateOf(steps, T, c.min) : { cur: -1, next: -1, kind: 'none', text: 'No plan for this day' };
+    return { t, g, steps, st };
+  });
+  items.sort((a, b) => (a.g ? 0 : 1) - (b.g ? 0 : 1) || a.t.name.localeCompare(b.t.name));
+  $('list').innerHTML = items.map(it => {
+    const open = openTeam === it.t.code;
+    const label = it.g ? (it.g.name || 'Plan') : '';
+    return '<div class="team' + (open ? ' open' : '') + '" data-code="' + esc(it.t.code) + '"><button class="th" data-t="' + esc(it.t.code) + '"><span class="dot ' + it.st.kind + '"></span><span class="tn"><b>' + esc(it.t.name) + '</b><span>' + esc(it.st.text) + '</span></span><span class="car">&rsaquo;</span></button>' +
+      (open ? '<div class="body">' + (label ? '<div class="plan">' + esc(label) + '</div>' : '') + (it.g ? '<div class="stat ' + it.st.kind + '">' + esc(it.st.text) + '</div>' : '') +
+        (it.steps.length ? '<div class="tl">' + it.steps.map((s, i) => stepHtml(s, i, it.st)).join('') + '</div>' : '<div class="empty">Nothing planned.</div>') + '</div>' : '') + '</div>';
+  }).join('');
+  [...$('list').querySelectorAll('.th')].forEach(b => b.onclick = () => {
+    const code = b.getAttribute('data-t');
+    openTeam = openTeam === code ? '' : code; lsSet(LS_OPEN, openTeam); lastKey = {};
+    render(true);
+    if(openTeam){ const el = $('list').querySelector('.team.open'); if(el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+  });
+  // keep the current step in view when the team is opened or the step changes
+  const it = items.find(x => x.t.code === openTeam);
+  if(it){
+    const key = (it.g ? it.g.key : '') + '|' + it.st.cur + '|' + it.st.kind;
+    if(force || lastKey[openTeam] !== key){
+      lastKey[openTeam] = key;
+      const el = $('list').querySelector('.team.open .st.cur, .team.open .st.at, .team.open .st.next');
+      if(el && force){ setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 120); }
+    }
+  }
+}
+
+$('refresh').onclick = load;
+setInterval(() => render(false), 30 * 1000);
+setInterval(() => { if(navigator.onLine) load(); }, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden){ render(false); if(navigator.onLine && Date.now() - data.at > 60000) load(); } });
+window.addEventListener('online', load);
+render(true);
+load();
+</script>
+</body>
+</html>
