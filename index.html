@@ -80,6 +80,11 @@
   .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 4px; }
   .tab { width: auto; margin: 0; padding: 8px 14px; font-size: 13px; background: var(--line); border-radius: 999px; }
   .tab.on { background: var(--blue); }
+  #crewCard .ch { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--sub); margin-bottom: 8px; }
+  #crewCard .cp { margin-top: 8px; } #crewCard .cp:first-of-type { margin-top: 0; }
+  #crewCard .cpn { font-size: 12px; color: var(--sub); }
+  #crewCard .cn { font-size: 17px; font-weight: 700; padding: 3px 0; }
+  #crewCard .cno { font-size: 12.5px; color: var(--warn); font-weight: 400; }
   .altbar { display: flex; gap: 10px; margin: 6px 0 4px; }
   .altbar div { flex: 1; background: #0b1220; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
   .altbar span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--sub); }
@@ -189,6 +194,7 @@
 
 <!-- MAIN: scanning -->
 <div class="hidden" id="mainScreen" style="width:100%;max-width:420px;">
+  <div class="card hidden" id="crewCard"></div>
   <button class="planbtn" id="planBtn">Today's plan</button>
   <div class="duo">
     <button class="planbtn" id="briefBtn">Briefing<span class="newdot hidden" id="briefDot"></span></button>
@@ -503,6 +509,8 @@ function enterMain(){
   $('teamLabelMain').textContent = teamName(teamCode());
   loadPlanCache();
   syncPlan();
+  renderCrew();
+  syncCrew();
   loadNoticeCache();
   renderNotice();
   pollNotices();
@@ -725,6 +733,31 @@ window.addEventListener('online', () => { syncQueue(true); syncTags(); syncPlan(
 setInterval(() => { if(navigator.onLine){ syncQueue(true); checkRevoked(); } }, 60 * 1000);
 setInterval(() => { if(navigator.onLine){ syncTags(); syncPlan(); } }, 5 * 60 * 1000);
 
+
+/* ================= Crew on duty today (names come from the Duty Roster) ================= */
+const LS_CREW = 'onboardpatrol_crew';
+function renderCrew(){
+  const box = $('crewCard');
+  const c = loadJSON(LS_CREW, {});
+  const posts = (c.team === teamCode() && c.data && Array.isArray(c.data.posts)) ? c.data.posts : [];
+  const ok = posts.filter(p => p.names && p.names.length);
+  if(!ok.length){ box.classList.add('hidden'); box.innerHTML = ''; return; }
+  box.innerHTML = '<div class="ch">On duty today</div>' + ok.map(p => '<div class="cp">' + (ok.length > 1 ? '<div class="cpn">' + esc(p.post) + '</div>' : '') +
+    p.names.map((n, i) => '<div class="cn">' + esc(n) + (p.notes && p.notes[i] ? ' <span class="cno">' + esc(p.notes[i]) + '</span>' : '') + '</div>').join('') + '</div>').join('');
+  box.classList.remove('hidden');
+}
+async function syncCrew(){
+  const team = teamCode();
+  if(!team || !navigator.onLine){ renderCrew(); return; }
+  try{
+    const r = await fetchJSON('format=crew&team=' + encodeURIComponent(team));
+    if(r && Array.isArray(r.posts)) saveJSON(LS_CREW, { team: team, data: r });
+  }catch(e){}
+  renderCrew();
+}
+setInterval(() => { if(localStorage.getItem(LS_SIGNED_IN) === '1') syncCrew(); }, 2 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden && localStorage.getItem(LS_SIGNED_IN) === '1') syncCrew(); });
+window.addEventListener('online', () => { if(localStorage.getItem(LS_SIGNED_IN) === '1') syncCrew(); });
 
 /* ================= Patrol plan ================= */
 let planRows = [];
