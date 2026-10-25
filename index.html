@@ -530,16 +530,24 @@ function setGpsStatus(on, text){
   $('gpsDot').className = 'dot ' + (on ? 'on' : 'off');
   $('gpsText').textContent = text;
 }
-function getPosition(){
+let lastGps = null;   // last good position, used if a fresh one cannot be read at the moment of the scan
+function readPos(opts){
   return new Promise(resolve => {
     if(!('geolocation' in navigator)){ resolve(null); return; }
     navigator.geolocation.getCurrentPosition(
       pos => resolve({ lat:pos.coords.latitude, lon:pos.coords.longitude, acc:Math.round(pos.coords.accuracy) }),
-      () => resolve(null),
-      { enableHighAccuracy:true, timeout:8000, maximumAge:5000 }
-    );
+      () => resolve(null), opts);
   });
 }
+async function getPosition(){
+  let p = await readPos({ enableHighAccuracy:true, timeout:10000, maximumAge:5000 });
+  if(!p) p = await readPos({ enableHighAccuracy:false, timeout:8000, maximumAge:60000 });
+  if(p){ lastGps = Object.assign({ at: Date.now() }, p); return p; }
+  if(lastGps && Date.now() - lastGps.at < 2 * 60 * 1000) return { lat: lastGps.lat, lon: lastGps.lon, acc: lastGps.acc };
+  return null;
+}
+// keep a recent position ready while the app is open, so a scan almost never goes out without GPS
+setInterval(() => { if(!document.hidden && localStorage.getItem(LS_SIGNED_IN) === '1') getPosition(); }, 60 * 1000);
 async function primeGps(){
   setGpsStatus(false, 'GPS: checking…');
   const p = await getPosition();
@@ -683,7 +691,8 @@ function renderLog(){
         : '<span class="chip warn">Pending</span>';
       return '<div class="rec"><div class="r1"><span>' + esc(stationText(tag) || 'Tag ' + r.tagId) + '</span>' +
         '<span class="tm">' + esc(new Date(r.ts).toLocaleTimeString('en-GB')) + '</span></div>' +
-        '<div class="r2">' + esc(r.tagId) + ' · ' + esc(r.source) + '</div>' + sync + geoChip + '</div>';
+        '<div class="r2">' + esc(r.tagId) + ' · ' + esc(r.source) + '</div>' +
+        '<div class="r2">' + (r.gps ? 'GPS ' + Number(r.gps.lat).toFixed(5) + ', ' + Number(r.gps.lon).toFixed(5) + (r.gps.acc ? ' (±' + esc(r.gps.acc) + ' m)' : '') : 'No GPS position') + '</div>' + sync + geoChip + '</div>';
     }).join('');
   }
   const pending = log.filter(r => r.status !== 'sent').length;
@@ -1018,7 +1027,7 @@ async function syncEmergency(){
 function renderEmergency(){
   $('contentTitle').textContent = 'Emergency Numbers';
   $('contentBody').innerHTML = emgData.length ? emgData.map(c =>
-    '<div class="emg"><div><div class="en">' + esc(c.name) + '</div>' + (c.note ? '<div class="eo">' + esc(c.note) + '</div>' : '') + '</div>' +
+    '<div class="emg"' + (c.sup ? ' style="border:2px solid #60a5fa;"' : '') + '><div><div class="en">' + esc(c.name) + '</div>' + (c.note ? '<div class="eo">' + esc(c.note) + '</div>' : '') + '</div>' +
     '<a class="call" href="tel:' + esc(String(c.number).replace(/[^0-9+*#]/g, '')) + '">' + esc(c.number) + '</a></div>').join('')
     : '<div class="note">No emergency numbers have been added yet.</div>';
 }
