@@ -20,8 +20,8 @@
   .sub { color: var(--sub); font-size: 14px; margin-bottom: 20px; text-align: center; }
   .card { background: var(--card); border-radius: 16px; padding: 20px; width: 100%; max-width: 420px; margin-bottom: 16px; }
   .hidden { display: none !important; }
-  #annBar { margin: 8px 0 12px; border-left: 5px solid #E5342A; background: #fff; border-radius: 10px; padding: 10px 12px; box-shadow: 0 1px 4px rgba(15,23,42,.12); }
-  #annBar .at { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #E5342A; margin-bottom: 4px; }
+  #annBar { margin: 8px 0 12px; border-left: 5px solid #1D4ED8; background: #fff; border-radius: 10px; padding: 10px 12px; box-shadow: 0 1px 4px rgba(15,23,42,.12); }
+  #annBar .at { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #1D4ED8; margin-bottom: 4px; }
   #annBar .ai { font-size: 15px; font-weight: 600; line-height: 1.35; color: #0F172A; padding: 3px 0; }
   #annBar .ai + .ai { border-top: 1px dashed #D5DCE6; margin-top: 3px; padding-top: 6px; }
   label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; margin-top: 14px; }
@@ -116,15 +116,15 @@
   #contentOverlay .emg .en { font-size: 17px; font-weight: 700; } #contentOverlay .emg .eo { font-size: 13px; color: var(--sub); margin-top: 2px; }
   #contentOverlay .emg a.call { flex: none; background: #E5342A; color: #fff; text-decoration: none; font-weight: 800; font-size: 17px; padding: 12px 14px; border-radius: 10px; white-space: nowrap; }
   #contentOverlay .citem { text-align: left; background: var(--card); margin-top: 10px; display: flex; justify-content: space-between; }
-  #noticeOverlay { position: fixed; inset: 0; z-index: 100; background: #7c2d12; overflow-y: auto; display: flex; align-items: flex-start; justify-content: center; padding: calc(16px + env(safe-area-inset-top)) 14px calc(24px + env(safe-area-inset-bottom)); }
+  #noticeOverlay { position: fixed; inset: 0; z-index: 100; background: #0B1B33; overflow-y: auto; display: flex; align-items: flex-start; justify-content: center; padding: calc(16px + env(safe-area-inset-top)) 14px calc(24px + env(safe-area-inset-bottom)); }
   #noticeOverlay .nbox { width: 100%; max-width: 480px; }
-  .nhead { background: #fbbf24; color: #1c1917; font-weight: 800; font-size: 15px; letter-spacing: .04em; text-align: center; padding: 12px; border-radius: 12px 12px 0 0; }
-  .ntext { background: #fff7ed; color: #1c1917; font-size: 22px; line-height: 1.35; font-weight: 700; padding: 22px 18px; white-space: pre-wrap; word-break: break-word; }
-  .nask { color: #ffedd5; font-size: 14px; font-weight: 700; margin: 16px 2px 8px; }
-  #noticeWho button { font-size: 19px; padding: 18px 14px; margin-top: 10px; background: #fff; color: #7c2d12; }
-  #noticeWho button:active { background: #fed7aa; }
-  #noticeWho .confirmed { margin-top: 10px; padding: 18px 14px; border-radius: 10px; background: #14532d; color: #dcfce7; font-size: 19px; font-weight: 700; text-align: center; }
-  .nfoot { color: #fed7aa; font-size: 12px; text-align: center; margin-top: 14px; }
+  .nhead { color: #93C5FD; font-weight: 700; font-size: 12.5px; letter-spacing: .16em; text-transform: uppercase; text-align: center; padding: 6px 12px 12px; }
+  .ntext { background: #fff; color: #0B1B33; font-size: 22px; line-height: 1.4; font-weight: 700; padding: 22px 20px; border-radius: 14px; border-left: 6px solid #3B82F6; box-shadow: 0 10px 30px rgba(0,0,0,.35); white-space: pre-wrap; word-break: break-word; }
+  .nask { color: #CBD5E1; font-size: 14px; font-weight: 600; margin: 18px 2px 8px; }
+  #noticeWho button { font-size: 18px; padding: 16px 14px; margin-top: 10px; background: #16345E; color: #fff; border: 1px solid #2E5A8F; }
+  #noticeWho button:active { background: #1E4478; }
+  #noticeWho .confirmed { margin-top: 10px; padding: 16px 14px; border-radius: 10px; background: #12324A; color: #86EFAC; font-size: 18px; font-weight: 700; text-align: center; border: 1px solid #1F5A45; }
+  .nfoot { color: #94A3B8; font-size: 12px; text-align: center; margin-top: 14px; }
   #toast {
     position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px);
     background: #0b1220; border: 1px solid var(--line); color: var(--ink); padding: 11px 16px; border-radius: 12px;
@@ -236,7 +236,7 @@
 <!-- NOTICE: supervisor message, full screen, every person of the crew confirms by name -->
 <div id="noticeOverlay" class="hidden">
   <div class="nbox">
-    <div class="nhead">&#9888; MESSAGE FROM THE SUPERVISOR</div>
+    <div class="nhead">Message from the supervisor</div>
     <div class="ntext" id="noticeText"></div>
     <div class="nask">Each person must confirm below:</div>
     <div id="noticeWho"></div>
@@ -946,6 +946,39 @@ function missingFor(m){
 function pendingNotice(){
   return (noticeData.messages || []).find(m => missingFor(m).length > 0) || null;
 }
+/* Own sound for supervisor messages: a soft two-tone chime, played when a message appears and every minute until confirmed.
+   Phones only allow sound after the screen has been touched once, so the first touch "unlocks" it. */
+let audioCtx = null, chimeTimer = null;
+function unlockAudio(){
+  try{
+    if(!audioCtx){ const AC = window.AudioContext || window.webkitAudioContext; if(AC) audioCtx = new AC(); }
+    if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  }catch(e){}
+}
+['touchstart','pointerdown','keydown'].forEach(ev => document.addEventListener(ev, unlockAudio, { passive: true }));
+function tone(freq, start, dur){
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type = 'sine'; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, start);
+  g.gain.exponentialRampToValueAtTime(0.35, start + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(start); o.stop(start + dur + 0.05);
+}
+function noticeChime(){
+  try{
+    unlockAudio();
+    if(!audioCtx) return;
+    const t = audioCtx.currentTime + 0.05;
+    [0, 0.9].forEach(off => { tone(784, t + off, 0.32); tone(1175, t + off + 0.22, 0.5); });
+  }catch(e){}
+  clearInterval(chimeTimer);
+  chimeTimer = setInterval(() => {
+    if($('noticeOverlay').classList.contains('hidden')){ clearInterval(chimeTimer); return; }
+    try{ if(navigator.vibrate) navigator.vibrate([200, 100, 200]); }catch(e){}
+    try{ unlockAudio(); if(audioCtx){ const t = audioCtx.currentTime + 0.05; tone(784, t, 0.32); tone(1175, t + 0.22, 0.5); } }catch(e){}
+  }, 60 * 1000);
+}
 function renderNotice(){
   const signed = localStorage.getItem(LS_SIGNED_IN) === '1';
   const m = signed ? pendingNotice() : null;
@@ -963,6 +996,7 @@ function renderNotice(){
   if(noticeShown !== m.id){
     noticeShown = m.id;
     try{ if(navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]); }catch(e){}
+    noticeChime();
     ov.scrollTop = 0;
   }
 }
