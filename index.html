@@ -497,6 +497,7 @@ $('resetLink').addEventListener('click', resetPhone);
 
 function signOut(){
   stopScan();
+  stopGpsWatch();
   localStorage.removeItem(LS_SIGNED_IN);
   closeContent();
   renderNotice();
@@ -530,29 +531,57 @@ function setGpsStatus(on, text){
   $('gpsDot').className = 'dot ' + (on ? 'on' : 'off');
   $('gpsText').textContent = text;
 }
-let lastGps = null;   // last good position, used if a fresh one cannot be read at the moment of the scan
+/* ---- GPS ----
+   While the app is open the phone keeps reading its position (watchPosition), so a scan gets a fresh fix at once
+   instead of waiting for the GPS to wake up. If there is no fix, the app records WHY (permission / location off / no signal). */
+let lastGps = null;        // { lat, lon, acc, at }
+let gpsErr = '';           // 'denied' | 'unavailable' | 'timeout' | 'unsupported' | ''
+let gpsWatchId = null;
+const GPS_WHY = {
+  denied: 'Location is blocked for this app — allow it in the browser / app settings',
+  unavailable: 'Location is off or unavailable — switch Location on (high accuracy)',
+  timeout: 'No GPS signal yet — try again in the open',
+  unsupported: 'This phone/browser cannot give a location'
+};
+function errCode(e){ return !e ? 'timeout' : (e.code === 1 ? 'denied' : (e.code === 2 ? 'unavailable' : 'timeout')); }
+function keepFix(pos){
+  lastGps = { lat: pos.coords.latitude, lon: pos.coords.longitude, acc: Math.round(pos.coords.accuracy), at: Date.now() };
+  gpsErr = '';
+}
+function startGpsWatch(){
+  if(!('geolocation' in navigator)){ gpsErr = 'unsupported'; return; }
+  if(gpsWatchId !== null) return;
+  try{
+    gpsWatchId = navigator.geolocation.watchPosition(
+      pos => { keepFix(pos); setGpsStatus(true, 'GPS ready (±' + lastGps.acc + ' m)'); },
+      e => { gpsErr = errCode(e); if(!lastGps || Date.now() - lastGps.at > 120000) setGpsStatus(false, GPS_WHY[gpsErr]); },
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 });
+  }catch(e){ gpsWatchId = null; }
+}
+function stopGpsWatch(){ try{ if(gpsWatchId !== null) navigator.geolocation.clearWatch(gpsWatchId); }catch(e){} gpsWatchId = null; }
 function readPos(opts){
   return new Promise(resolve => {
-    if(!('geolocation' in navigator)){ resolve(null); return; }
-    navigator.geolocation.getCurrentPosition(
-      pos => resolve({ lat:pos.coords.latitude, lon:pos.coords.longitude, acc:Math.round(pos.coords.accuracy) }),
-      () => resolve(null), opts);
+    if(!('geolocation' in navigator)){ gpsErr = 'unsupported'; resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(pos => { keepFix(pos); resolve({ lat: lastGps.lat, lon: lastGps.lon, acc: lastGps.acc }); },
+      e => { gpsErr = errCode(e); resolve(null); }, opts);
   });
 }
 async function getPosition(){
-  let p = await readPos({ enableHighAccuracy:true, timeout:10000, maximumAge:5000 });
-  if(!p) p = await readPos({ enableHighAccuracy:false, timeout:8000, maximumAge:60000 });
-  if(p){ lastGps = Object.assign({ at: Date.now() }, p); return p; }
-  if(lastGps && Date.now() - lastGps.at < 2 * 60 * 1000) return { lat: lastGps.lat, lon: lastGps.lon, acc: lastGps.acc };
+  // fresh fix from the running watch: use it straight away
+  if(lastGps && Date.now() - lastGps.at < 30000) return { lat: lastGps.lat, lon: lastGps.lon, acc: lastGps.acc };
+  let p = await readPos({ enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 });
+  if(!p && gpsErr !== 'denied') p = await readPos({ enableHighAccuracy: false, timeout: 8000, maximumAge: 120000 });
+  if(p) return p;
+  if(lastGps && Date.now() - lastGps.at < 5 * 60 * 1000) return { lat: lastGps.lat, lon: lastGps.lon, acc: lastGps.acc, old: Math.round((Date.now() - lastGps.at) / 1000) };
   return null;
 }
-// keep a recent position ready while the app is open, so a scan almost never goes out without GPS
-setInterval(() => { if(!document.hidden && localStorage.getItem(LS_SIGNED_IN) === '1') getPosition(); }, 60 * 1000);
+document.addEventListener('visibilitychange', () => { if(document.hidden) stopGpsWatch(); else if(localStorage.getItem(LS_SIGNED_IN) === '1') startGpsWatch(); });
 async function primeGps(){
   setGpsStatus(false, 'GPS: checking…');
+  startGpsWatch();
   const p = await getPosition();
-  if(p) setGpsStatus(true, 'GPS ready');
-  else setGpsStatus(false, 'GPS off — switch Location on and allow it for this app');
+  if(p) setGpsStatus(true, 'GPS ready (±' + p.acc + ' m)');
+  else setGpsStatus(false, GPS_WHY[gpsErr] || GPS_WHY.timeout);
 }
 
 /* ---- Tag lookup + local feedback (the server makes the official check) ---- */
@@ -633,7 +662,8 @@ async function handleScan(tagId, source){
   $('scanZone').classList.remove('listening');
   $('scanTitle').textContent = 'Reading position…';
   const gps = await getPosition();
-  setGpsStatus(!!gps, gps ? 'GPS ready' : 'GPS off — switch Location on and allow it for this app');
+  const why = gps ? '' : (gpsErr || 'timeout');
+  setGpsStatus(!!gps, gps ? 'GPS ready (±' + gps.acc + ' m)' : GPS_WHY[why]);
   const tag = findTag(tagId);
   const geo = geofenceOf(tag, gps);
 
@@ -645,7 +675,7 @@ async function handleScan(tagId, source){
     type: 'scan',
     tagId: tagId,
     gps: gps,
-    source: source,
+    source: gps ? source : source + ' · no GPS: ' + why,
     status: 'queued'
   };
   log.push(rec);
@@ -658,7 +688,7 @@ async function handleScan(tagId, source){
   if(geo === 'match') { $('scanTitle').textContent = 'Scan logged'; $('scanSub').textContent = stationText(tag) + ' · location confirmed'; }
   else if(geo === 'no_location') { $('scanTitle').textContent = 'Scan logged'; $('scanSub').textContent = stationText(tag); }
   else if(geo === 'mismatch') { $('scanTitle').textContent = 'Logged — location mismatch'; $('scanSub').textContent = stationText(tag) + ' · you do not appear to be at this tag'; }
-  else if(geo === 'no_gps') { $('scanTitle').textContent = 'Logged — no GPS position'; $('scanSub').textContent = (stationText(tag) || tagId) + ' · switch Location on'; }
+  else if(geo === 'no_gps') { $('scanTitle').textContent = 'Logged — no GPS position'; $('scanSub').textContent = (stationText(tag) || tagId) + ' · ' + GPS_WHY[why]; }
   else { $('scanTitle').textContent = 'Logged — tag not registered'; $('scanSub').textContent = tagId + ' · tell your supervisor'; }
   setTimeout(() => { $('scanZone').classList.remove('ok', 'warn'); stopScan(); }, 2200);
 
