@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="On Duty">
 <title>BVN Connolly - On Duty</title>
 <meta name="theme-color" content="#0B1B2E">
 <style>
@@ -96,7 +100,7 @@
   <div id="warnbox"></div>
   <div id="grid"></div>
   <div id="ticker"><div id="tk"></div></div>
-  <footer><span><span class="dot" id="dot"></span><span id="status">Loading...</span></span><span><button id="fs">Full screen</button> <button id="chg">Change PIN</button></span></footer>
+  <footer><span><span class="dot" id="dot"></span><span id="status">Loading...</span></span><span><button id="fs">Full screen</button> <button id="chg" style="display:none">Change PIN</button></span></footer>
 </div>
 <div id="pop"><div id="popLabel">Announcement</div><div id="popText"></div></div>
 <div id="lock">
@@ -192,9 +196,9 @@
     $('status').textContent = msg;
   }
   function load() {
-    Promise.all([getJSON('format=teams'), getJSON('format=crewcheck&pin=' + encodeURIComponent(pin))]).then(function (res) {
+    Promise.all([getJSON('format=teams'), getJSON('format=crewtoday')]).then(function (res) {
       var t = res[0], c = res[1];
-      if (c && c.error) { lsDel(KEY); pin = ''; showLock('Incorrect PIN'); return; }
+      if (!c || c.error || !Array.isArray(c.rows)) throw new Error('bad');
       if (Array.isArray(t)) teams = t;
       crew = c; lastOk = Date.now();
       tick(); render();
@@ -224,12 +228,28 @@
   $('go').onclick = submit;
   $('pin').onkeydown = function (e) { if (e.key === 'Enter') submit(); };
   $('chg').onclick = function () { lsDel(KEY); pin = ''; showLock(''); };
-  $('fs').onclick = function () { var el = document.documentElement; if (el.requestFullscreen) el.requestFullscreen(); };
+  $('fs').onclick = function () {
+    var el = document.documentElement, rq = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (rq && !document.fullscreenElement && !document.webkitFullscreenElement) { try { var p = rq.call(el); if (p && p.catch) p.catch(function () { cleanMode(true); }); } catch (e) { cleanMode(true); } return; }
+    if (document.fullscreenElement || document.webkitFullscreenElement) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+    cleanMode(true);
+  };
+  /* iPhone browsers (Safari/Chrome) have no real full screen: hide the bottom bar instead and explain how to get true full screen */
+  function cleanMode(on) {
+    var f = document.querySelector('footer'); if (!f) return;
+    f.style.display = on ? 'none' : ''; fit();
+    var h = $('cleanHint');
+    if (on) {
+      if (!h) { h = document.createElement('div'); h.id = 'cleanHint'; h.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:50;background:#000;border:2px solid #fff;color:#fff;padding:10px 12px;font:700 13px "Courier New",monospace;text-align:center'; h.textContent = 'On iPhone/iPad: Share > Add to Home Screen, then open it from the icon for true full screen. Tap anywhere to bring the buttons back.'; document.body.appendChild(h); setTimeout(function () { if (h.parentNode) h.parentNode.removeChild(h); }, 8000); }
+      setTimeout(function () { document.addEventListener('click', back, { once: true }); }, 300);
+    }
+    function back() { cleanMode(false); if (h && h.parentNode) h.parentNode.removeChild(h); }
+  }
   window.addEventListener('resize', fit);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
   setInterval(tick, 15000); tick();
-  pin = lsGet(KEY) || '';
-  if (pin) start(); else showLock('');
+  // No PIN needed any more: anyone with the link (or the QR code) sees who is on duty today.
+  start();
 
   /* ---- Announcements (public feed; no PIN) ---- */
   var annSig = '', tickAnim = null, pops = [], popIdx = 0, popT = null, popSig = '';
