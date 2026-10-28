@@ -83,7 +83,7 @@
       <div class="brand"><b>BVN</b><span>BIDVEST NOONAN</span><i id="day"></i></div>
     </header>
     <div class="cols">
-      <div>Shift<i>time</i></div><div>Team<i>post</i></div><div>Officer 1<i>phone · bodycam 1</i></div><div>Officer 2<i>key · bodycam 2</i></div><div>Information<i>messages · patrol now</i></div>
+      <div>Shift<i>time</i></div><div>Team<i>post</i></div><div>Officer 1<i>phone · bodycam 1</i></div><div>Officer 2<i>key · bodycam 2</i></div><div>Information<i>messages for the team</i></div>
     </div>
     <div id="rows"></div>
     <div id="ticker"><div id="tk"></div></div>
@@ -134,10 +134,10 @@
           if (f) { if (!f.note && note) f.note = note; } else ppl.push({ name: n, note: note });
         });
       });
-      out.push({ key: t.code, code: t.code, name: t.name, time: time, ppl: ppl, line: (data.lines || {})[t.code] || '', plan: (data.plans || {})[t.code] || '' });
+      out.push({ key: t.code, code: t.code, name: t.name, time: time, ppl: ppl, msgs: (data.msgs || {})[t.code] || [] });
     });
     rows.filter(function (r) { return !used[r.post + '|' + r.team] && (r.names || []).length; }).forEach(function (r) {
-      out.push({ key: 'post:' + r.post, code: /supervisor/i.test(r.post) ? 'SUP' : initials(r.post), name: r.post, time: r.time || '', ppl: r.names.map(function (n, k) { return { name: n, note: (r.notes && r.notes[k]) || '' }; }), line: '', plan: '' });
+      out.push({ key: 'post:' + r.post, code: /supervisor/i.test(r.post) ? 'SUP' : initials(r.post), name: r.post, time: r.time || '', ppl: r.names.map(function (n, k) { return { name: n, note: (r.notes && r.notes[k]) || '' }; }), msgs: [] });
     });
     return out;
   }
@@ -146,11 +146,9 @@
     var sub = [p.note, extra].filter(Boolean).join(' · ');
     return '<div class="nm">' + esc(p.name) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div>';
   }
+  // only the supervisor's messages for that team (typed in the dashboard, Announcements tab)
   function infoHtml(r) {
-    var parts = [];
-    if (r.line) parts.push('<b class="cu">' + esc(r.line) + '</b>');
-    if (r.plan) parts.push(esc(r.plan));
-    return parts.join('&nbsp;&nbsp;&nbsp;&#9670;&nbsp;&nbsp;&nbsp;');
+    return (r.msgs || []).map(function (t) { return '<b class="cu">' + esc(t) + '</b>'; }).join('&nbsp;&nbsp;&nbsp;&#9670;&nbsp;&nbsp;&nbsp;');
   }
   function render() {
     var list = buildRows(), box = $('rows');
