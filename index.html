@@ -840,17 +840,17 @@ function daysLabel(codes){
   if(list.indexOf('BH') >= 0) parts.push('Bank holidays');
   return parts.join(', ');
 }
-// A shift that runs past midnight still belongs to the day it started: before 06:00 we use yesterday.
+// A shift that runs past midnight still belongs to the day it started: before 02:00 we use yesterday.
 function shiftDayCode(){
   const d = new Date();
-  if(d.getHours() < 6) d.setDate(d.getDate() - 1);
+  if(d.getHours() < 2) d.setDate(d.getDate() - 1);
   return ['SUN','MON','TUE','WED','THU','FRI','SAT'][d.getDay()];
 }
 // A plan is identified by its id (older backends only send the days, which then act as the id).
 function planKey(r){ return r.plan || r.days; }
 function shiftIso(){
   const d = new Date();
-  if(d.getHours() < 6) d.setDate(d.getDate() - 1);
+  if(d.getHours() < 2) d.setDate(d.getDate() - 1);
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 function dmy(iso){ return iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : ''; }
@@ -936,7 +936,7 @@ function renderPlan(){
   if(planGroup === today){
     const d = new Date();
     let nm = d.getHours() * 60 + d.getMinutes();
-    if(d.getHours() < 6) nm += 1440;
+    if(d.getHours() < 2) nm += 1440;
     let idx = -1;
     times.forEach((t, i) => { if(t <= nm) idx = i; });
     now = idx;

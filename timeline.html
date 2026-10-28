@@ -101,7 +101,7 @@ function clockNow(){
   new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Dublin', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date()).forEach(p => { parts[p.type] = p.value; });
   return { iso: parts.year + '-' + parts.month + '-' + parts.day, min: Number(parts.hour) % 24 * 60 + Number(parts.minute) };
 }
-function dutyIso(c){ if(c.min >= 360) return c.iso; const d = new Date(c.iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); }
+function dutyIso(c){ if(c.min >= 120) return c.iso; const d = new Date(c.iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); }
 const DOW = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
 const dow = iso => DOW[new Date(iso + 'T12:00:00Z').getUTCDay()];
 const hm = m => { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
