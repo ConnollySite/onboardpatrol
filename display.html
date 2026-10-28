@@ -29,7 +29,7 @@
   .cols { padding-top: .6vh; padding-bottom: .9vh; font-size: 2.5vh; color: var(--ink); line-height: 1.15; border-bottom: 1px solid rgba(255,255,255,.12); background: linear-gradient(180deg, #1238a6, #1546c9); }
   .cols i { display: block; color: var(--ink); opacity: .9; }
   #rows { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-  .row { flex: 1 1 0; min-height: 0; max-height: 13vh; background: var(--blue1); }
+  .row { flex: 1 1 0; min-height: 0; max-height: 15vh; background: var(--blue1); }
   .row:nth-child(even) { background: var(--blue2); }
   .tm { font-size: calc(var(--rh) * .46); font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; }
   .tm small { display: block; font-size: .5em; color: var(--yel); margin-top: .15em; }
@@ -55,6 +55,18 @@
   #pop.on { display: flex; }
   #popLabel { font-size: 3vh; letter-spacing: .3em; color: var(--yel); text-transform: uppercase; margin-bottom: 3vh; font-weight: 700; }
   #popText { font-weight: 700; line-height: 1.15; color: #fff; max-width: 100%; overflow-wrap: anywhere; }
+  /* big screen (landscape, full screen): larger text */
+  @media (min-width: 801px) {
+    header { padding-top: .8vh; padding-bottom: .3vh; }
+    .ttl h1 { font-size: 6.4vh; } .ttl em { font-size: 5.4vh; } .clock { font-size: 7vh; }
+    .cols { font-size: 2.1vh; padding-top: .3vh; padding-bottom: .5vh; }
+    .tm { font-size: calc(var(--rh) * .54); }
+    .box { font-size: calc(var(--rh) * .4); }
+    .tn { font-size: calc(var(--rh) * .2); }
+    .nm { font-size: calc(var(--rh) * .52); }
+    .info span { font-size: calc(var(--rh) * .44); }
+    #tk { font-size: 4.2vh; }
+  }
   /* phone (QR code): one card per team, the page scrolls */
   @media (max-width: 800px) {
     html, body { height: auto; overflow: auto; }
@@ -192,7 +204,7 @@
     var box = $('rows'), n = box.querySelectorAll('.row').length || 1;
     var narrow = window.matchMedia && window.matchMedia('(max-width: 800px)').matches;
     if (narrow) { document.documentElement.style.removeProperty('--rh'); return; }
-    var h = Math.min(box.clientHeight / n, window.innerHeight * 0.13);
+    var h = Math.min(box.clientHeight / n, window.innerHeight * 0.15);
     document.documentElement.style.setProperty('--rh', Math.max(18, Math.floor(h)) + 'px');
   }
   window.addEventListener('resize', function () { fitRows(); staticSig = ''; render(); });
