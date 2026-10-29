@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Radio Finder</title>
+<meta name="theme-color" content="#1238a6">
+<link rel="manifest" href="radio.webmanifest">
+<link rel="icon" href="radio-icon-192.png">
+<link rel="apple-touch-icon" href="radio-icon-apple.png">
+<style>
+  :root { --bg: #060d22; --head: #1238a6; --blue1: #1b4fd8; --blue2: #1643bd; --yel: #f5d547; --ink: #fff; --soft: #bcd0ff; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; }
+  header { background: var(--head); padding: 14px 16px 12px; padding-top: calc(14px + env(safe-area-inset-top)); display: flex; align-items: baseline; justify-content: space-between; border-bottom: 2px solid #3f6be0; }
+  header h1 { margin: 0; font-size: 24px; font-weight: 500; color: var(--yel); }
+  header span { font-size: 13px; color: var(--soft); text-align: right; }
+  main { padding: 16px; max-width: 560px; margin: 0 auto; }
+  label { display: block; font-size: 15px; color: var(--soft); margin-bottom: 8px; }
+  .inp { display: flex; gap: 8px; }
+  #q { flex: 1; min-width: 0; font-size: 44px; letter-spacing: .25em; text-align: center; padding: 10px 8px; border-radius: 10px; border: 3px solid var(--yel); background: #fff; color: #111; font-weight: 700; font-variant-numeric: tabular-nums; }
+  #q:focus { outline: none; box-shadow: 0 0 0 4px rgba(245,213,71,.35); }
+  #clr { width: 64px; font-size: 26px; border-radius: 10px; border: 0; background: var(--blue2); color: #fff; }
+  .hint { font-size: 13px; color: var(--soft); margin: 8px 2px 16px; }
+  .card { background: var(--blue1); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; border-left: 6px solid var(--yel); }
+  .card:nth-child(even) { background: var(--blue2); }
+  .top { display: flex; align-items: center; gap: 12px; }
+  .box { background: #fff; color: #d6211f; font-weight: 800; font-size: 22px; letter-spacing: .06em; padding: 4px 10px; border-radius: 4px; text-transform: uppercase; min-width: 64px; text-align: center; }
+  .tn { font-size: 16px; color: var(--soft); }
+  .nm { font-size: 26px; font-weight: 700; margin: 10px 0 4px; }
+  .row { font-size: 16px; line-height: 1.5; }
+  .row b { color: var(--yel); font-weight: 600; }
+  .code { font-variant-numeric: tabular-nums; }
+  .msg { text-align: center; color: var(--soft); font-size: 18px; padding: 28px 10px; }
+  .err { color: #ffb4b4; }
+  #upd { display: block; margin: 18px auto 0; background: none; border: 1px solid #3f6be0; color: var(--soft); border-radius: 8px; padding: 10px 16px; font-size: 14px; }
+</style>
+</head>
+<body>
+<header><h1>Radio Finder</h1><span id="st">loading…</span></header>
+<main>
+  <label for="q">Last 3 numbers on the radio screen</label>
+  <div class="inp">
+    <input id="q" type="text" inputmode="numeric" autocomplete="off" maxlength="3" placeholder="···" autofocus>
+    <button id="clr" aria-label="Clear">✕</button>
+  </div>
+  <div class="hint">From today's Duty Roster. You can also type a name.</div>
+  <div id="out"></div>
+  <button id="upd">↻ Update now</button>
+</main>
+<script>
+(function () {
+  var URL_ = 'https://script.google.com/macros/s/AKfycbzyF9G_x34LnFZwufDixy3yff7WdMxnVlfeohSYnmlN8Dg025mdryAWMy1K-z0UA6dPTw/exec';
+  var KEY = 'radio_feed_cache';
+  var data = null, gotAt = 0;
+  var q = document.getElementById('q'), out = document.getElementById('out'), st = document.getElementById('st');
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function norm(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  function hm(t) { var d = new Date(t); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+  function fmtDate(iso) { var p = String(iso || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] : ''; }
+
+  function status() {
+    if (!data) { st.textContent = 'no data yet'; return; }
+    st.innerHTML = 'Duty ' + esc(fmtDate(data.date)) + '<br>updated ' + hm(gotAt);
+  }
+
+  function card(it) {
+    var team = it.team || '—';
+    return '<div class="card"><div class="top"><span class="box">' + esc(team) + '</span><span class="tn">' + esc(it.teamName || it.post) + '</span></div>' +
+      '<div class="nm">' + esc(it.name) + '</div>' +
+      '<div class="row"><b>Radio</b> <span class="code">' + esc(it.code) + '</span></div>' +
+      (it.post ? '<div class="row"><b>Post</b> ' + esc(it.post) + '</div>' : '') +
+      (it.time ? '<div class="row"><b>Shift</b> ' + esc(it.time) + '</div>' : '') +
+      (it.partner && it.partner.length ? '<div class="row"><b>With</b> ' + esc(it.partner.join(', ')) + '</div>' : '') +
+      '</div>';
+  }
+
+  function render() {
+    var v = q.value.trim();
+    if (!data) { out.innerHTML = '<div class="msg">Loading today\'s Duty Roster…</div>'; return; }
+    if (!v) { out.innerHTML = '<div class="msg">' + (data.items.length ? data.items.length + ' radios on duty today' : 'No radio codes in today\'s Duty Roster yet') + '</div>'; return; }
+    var list;
+    if (/^\d+$/.test(v)) {
+      list = data.items.filter(function (it) { return v.length === 3 ? it.user === v : it.user.indexOf(v) === 0; });
+    } else {
+      var n = norm(v);
+      list = data.items.filter(function (it) { return norm(it.name).indexOf(n) >= 0; });
+    }
+    list.sort(function (a, b) { return a.user < b.user ? -1 : a.user > b.user ? 1 : 0; });
+    out.innerHTML = list.length ? list.map(card).join('') : '<div class="msg">No radio ' + esc(v) + ' on today\'s Duty Roster</div>';
+  }
+
+  function load() {
+    st.textContent = 'updating…';
+    fetch(URL_ + '?format=radios&t=' + Date.now()).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j || !Array.isArray(j.items)) throw new Error('bad data');
+      data = j; gotAt = Date.now();
+      try { localStorage.setItem(KEY, JSON.stringify({ data: data, at: gotAt })); } catch (e) {}
+      status(); render();
+    }).catch(function () {
+      status();
+      st.innerHTML += '<br><span class="err">offline</span>';
+      render();
+    });
+  }
+
+  // last copy, so the page works at once (and without signal)
+  try { var c = JSON.parse(localStorage.getItem(KEY) || 'null'); if (c && c.data) { data = c.data; gotAt = c.at; } } catch (e) {}
+  status(); render();
+
+  q.addEventListener('input', function () {
+    // only digits keep the 3-digit limit; a name can be longer
+    if (/\D/.test(q.value)) q.removeAttribute('maxlength'); else q.setAttribute('maxlength', '3');
+    render();
+  });
+  document.getElementById('clr').onclick = function () { q.value = ''; q.setAttribute('maxlength', '3'); render(); q.focus(); };
+  document.getElementById('upd').onclick = load;
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && Date.now() - gotAt > 60000) load(); });
+  setInterval(function () { if (!document.hidden) load(); }, 120000);
+  load();
+})();
+</script>
+</body>
+</html>
