@@ -25,7 +25,7 @@
   .brand b { display: block; font-size: 5vh; letter-spacing: .06em; }
   .brand span { display: block; font-size: 2vh; font-weight: 700; letter-spacing: .3em; }
   .brand i { display: block; font-size: 2.3vh; color: var(--soft); margin-top: .4vh; font-style: normal; }
-  .cols, .row { display: grid; grid-template-columns: 9fr 8fr 19fr 19fr 45fr; align-items: center; column-gap: 1vw; padding: 0 1.6vw; }
+  .cols, .row { display: grid; grid-template-columns: var(--gcols, minmax(0,9fr) minmax(0,8fr) minmax(0,19fr) minmax(0,19fr) minmax(0,45fr)); align-items: center; column-gap: 1vw; padding: 0 1.6vw; }
   .cols { padding-top: .6vh; padding-bottom: .9vh; font-size: 2.5vh; color: var(--ink); line-height: 1.15; border-bottom: 1px solid rgba(255,255,255,.12); background: linear-gradient(180deg, #1238a6, #1546c9); }
   .cols i { display: block; color: var(--ink); opacity: .9; }
   #rows { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -74,13 +74,15 @@
     header { grid-template-columns: 1fr auto; row-gap: 4px; padding: 10px 12px 6px; }
     .ttl h1 { font-size: 30px; } .ttl em { display: none; }
     .clock { font-size: 26px; text-align: right; }
-    .brand { display: none; }
+    .brand { grid-column: 1 / -1; text-align: left; }
+    .brand b, .brand span { display: none; }
+    .brand i { font-size: 17px; margin-top: 0; color: #fff; }
     .cols { display: none; }
     #rows { display: block; }
     .row { --rh: 64px; max-height: none; grid-template-columns: auto auto 1fr; grid-template-areas: "tm box box" "n1 n1 n1" "n2 n2 n2" "info info info"; row-gap: 6px; padding: 10px 12px; }
-    .tm { grid-area: tm; } .bx { grid-area: box; } .n1 { grid-area: n1; } .n2 { grid-area: n2; } .info { grid-area: info; height: 30px; } .info span { font-size: 18px; }
+    .tm { grid-area: tm; } .bx { grid-area: box; } .n1 { grid-area: n1; } .n2 { grid-area: n2; } .n2:empty { display: none; } .info { grid-area: info; height: 30px; } .info span { font-size: 18px; }
     .info:empty, .info span:empty { display: none; }
-    .nm { white-space: normal; }
+    .nm { white-space: normal; } .row { max-height: none !important; }
     #tk { font-size: 20px; }
     footer { font-size: 12px; padding: 8px 2px 16px; }
   }
@@ -94,9 +96,7 @@
       <div class="clock" id="clock">--:--:--</div>
       <div class="brand"><b>BVN</b><span>BIDVEST NOONAN</span><i id="day"></i></div>
     </header>
-    <div class="cols">
-      <div>Shift<i>time</i></div><div>Team<i>post</i></div><div>Officer 1<i>phone · bodycam 1</i></div><div>Officer 2<i>key · bodycam 2</i></div><div>Information<i>messages for the team</i></div>
-    </div>
+    <div class="cols" id="cols"></div>
     <div id="rows"></div>
     <div id="ticker"><div id="tk"></div></div>
   </div>
@@ -118,7 +118,7 @@
     var d = new Date();
     $('clock').textContent = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Europe/Dublin' });
     var shown = data && data.date ? new Date(data.date + 'T12:00:00Z') : d;
-    $('day').textContent = shown.toLocaleDateString('en-IE', { weekday: 'short', day: '2-digit', month: 'short', timeZone: data && data.date ? 'UTC' : 'Europe/Dublin' });
+    $('day').textContent = shown.toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: data && data.date ? 'UTC' : 'Europe/Dublin' });
   }
   setInterval(tick, 1000); tick();
 
@@ -158,6 +158,19 @@
     var sub = [p.note, extra].filter(Boolean).join(' · ');
     return '<div class="nm">' + esc(p.name) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div>';
   }
+  // header and column widths for 2, 3 or 4 officers; the information column gives up the space
+  var SUBS = ['phone · bodycam 1', 'key · bodycam 2', 'bodycam 3', 'bodycam 4'];
+  var nCols = 2;
+  function setColumns(n) {
+    nCols = n;
+    var of = n === 2 ? 19 : n === 3 ? 16 : 14, info = 100 - 17 - n * of, t = 'minmax(0,9fr) minmax(0,8fr)';
+    for (var i = 0; i < n; i++) t += ' minmax(0,' + of + 'fr)';
+    document.documentElement.style.setProperty('--gcols', t + ' minmax(0,' + info + 'fr)');
+    var h = '<div>Shift<i>time</i></div><div>Team<i>post</i></div>';
+    for (var j = 0; j < n; j++) h += '<div>Officer ' + (j + 1) + '<i>' + SUBS[j] + '</i></div>';
+    $('cols').innerHTML = h + '<div>Information<i>messages for the team</i></div>';
+  }
+  setColumns(2);
   // only the supervisor's messages for that team (typed in the dashboard, Announcements tab)
   function infoHtml(r) {
     return (r.msgs || []).map(function (t) { return '<b class="cu">' + esc(t) + '</b>'; }).join('&nbsp;&nbsp;&nbsp;&#9670;&nbsp;&nbsp;&nbsp;');
@@ -172,13 +185,18 @@
     var sig = JSON.stringify(list.map(function (r) { return [r.key, r.code, r.name, r.time, r.ppl]; }));
     if (sig !== staticSig) {
       staticSig = sig; infoAnims = {};
+      // 3rd, 4th... officer: an extra line in the same row, name under name (3rd under Officer 1, 4th under Officer 2)
+      var narrow = window.matchMedia && window.matchMedia('(max-width: 800px)').matches;
       box.innerHTML = list.map(function (r) {
-        var sp = shiftParts(r.time), extra = r.ppl.slice(2).map(function (p) { return p.name; }).join(', ');
-        return '<div class="row" data-k="' + esc(r.key) + '">' +
+        var sp = shiftParts(r.time), lines = Math.max(1, Math.ceil(r.ppl.length / 2)), c1 = '', c2 = '';
+        r.ppl.forEach(function (p, k) { if (narrow || k % 2 === 0) c1 += personHtml(p); else c2 += personHtml(p); });
+        if (!r.ppl.length) c1 = personHtml(null);
+        if (!narrow && r.ppl.length < 2) c2 = personHtml(null);
+        var cells = '<div class="n1">' + c1 + '</div><div class="n2">' + c2 + '</div>';
+        return '<div class="row" data-k="' + esc(r.key) + '" data-l="' + lines + '" style="flex-grow:' + lines + ';max-height:' + (15 * lines) + 'vh">' +
           '<div class="tm">' + (sp.start ? esc(sp.start) + (sp.end ? '<small>&rarr; ' + esc(sp.end) + '</small>' : '') : '&mdash;') + '</div>' +
           '<div class="bx"><span class="box">' + esc(r.code) + '</span><span class="tn">' + esc(r.name) + '</span></div>' +
-          '<div class="n1">' + personHtml(r.ppl[0]) + '</div>' +
-          '<div class="n2">' + personHtml(r.ppl[1], extra ? '+ ' + extra : '') + '</div>' +
+          cells +
           '<div class="info"><span></span></div></div>';
       }).join('');
       fitRows();
@@ -201,10 +219,13 @@
   }
   // every line gets the same height; text size follows the line height
   function fitRows() {
-    var box = $('rows'), n = box.querySelectorAll('.row').length || 1;
+    var box = $('rows'), n = 0;
+    Array.prototype.forEach.call(box.querySelectorAll('.row'), function (r) { n += Number(r.getAttribute('data-l')) || 1; });
+    n = n || 1;
     var narrow = window.matchMedia && window.matchMedia('(max-width: 800px)').matches;
     if (narrow) { document.documentElement.style.removeProperty('--rh'); return; }
-    var h = Math.min(box.clientHeight / n, window.innerHeight * 0.15);
+    // also limited by the width, so names fit their column (more officer columns = narrower columns)
+    var h = Math.min(box.clientHeight / n, window.innerHeight * 0.15, window.innerWidth * 0.04);
     document.documentElement.style.setProperty('--rh', Math.max(18, Math.floor(h)) + 'px');
   }
   window.addEventListener('resize', function () { fitRows(); staticSig = ''; render(); });
