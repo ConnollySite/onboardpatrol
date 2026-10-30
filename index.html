@@ -75,6 +75,7 @@
   .chip.warn { background: rgba(251,191,36,.15); color: var(--warn); }
   .chip.bad { background: rgba(248,113,113,.15); color: var(--bad); }
   .empty { font-size: 13px; color: var(--sub); }
+  .rec .mt { font-size: 14.5px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; margin-top: 4px; }
 
   .planbtn { background: #0b1220; border: 1px solid var(--blue); color: #fff; margin-top: 14px; }
   .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 4px; }
@@ -221,6 +222,11 @@
       <input id="manualCode" placeholder="Tag code" autocomplete="off">
       <button id="manualLogBtn">Log scan</button>
     </div>
+  </div>
+
+  <div class="card hidden" id="msgCard">
+    <div class="listhead"><h2>Supervisor messages</h2></div>
+    <div id="msgList"></div>
   </div>
 
   <div class="card">
@@ -1013,6 +1019,7 @@ function renderNotice(){
   const signed = localStorage.getItem(LS_SIGNED_IN) === '1';
   const m = signed ? pendingNotice() : null;
   const ov = $('noticeOverlay');
+  renderMsgList();
   if(!m){ ov.classList.add('hidden'); noticeShown = ''; return; }
   const miss = missingFor(m).map(normN);
   ov.classList.remove('hidden');
@@ -1029,6 +1036,19 @@ function renderNotice(){
     noticeChime();
     ov.scrollTop = 0;
   }
+}
+// Messages already confirmed stay in the list under the scanner (newest first), like the scans
+function renderMsgList(){
+  const card = $('msgCard'); if(!card) return;
+  const read = (noticeData.messages || []).filter(m => missingFor(m).length === 0).slice().reverse();
+  if(!read.length){ card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  $('msgList').innerHTML = read.map(m => {
+    const who = (m.done || []).concat(localAcks(m.id)).filter((n, i, a) => a.map(normN).indexOf(normN(n)) === i);
+    return '<div class="rec"><div class="r1"><span>Message</span><span class="tm">' + esc(m.created || '') + '</span></div>' +
+      '<div class="mt">' + esc(m.text) + '</div>' +
+      (who.length ? '<span class="chip ok">&#10003; ' + esc(who.join(', ')) + '</span>' : '') + '</div>';
+  }).join('');
 }
 function confirmNotice(m, name){
   const all = loadJSON(LS_ACKS, {});
