@@ -28,6 +28,8 @@
   .cols, .row { display: grid; grid-template-columns: var(--gcols, minmax(0,10.5fr) minmax(0,8.5fr) minmax(0,30fr) minmax(0,51fr)); align-items: center; column-gap: 1vw; padding: 0 1.6vw; }
   .cols { padding-top: .6vh; padding-bottom: .9vh; font-size: 2.5vh; color: var(--ink); line-height: 1.15; border-bottom: 1px solid rgba(255,255,255,.12); background: linear-gradient(180deg, #1238a6, #1546c9); }
   .cols i { display: block; color: var(--ink); opacity: .9; }
+  .pgh { position: relative; }
+  #pgInfo { position: absolute; right: 0; top: 50%; transform: translateY(-50%); color: var(--yel); font-weight: 700; font-size: 1.15em; }
   #rows { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .row { flex: 1 1 0; min-height: 0; max-height: 15vh; background: var(--blue1); }
   .row:nth-child(even) { background: var(--blue2); }
@@ -206,7 +208,7 @@
   // one officers column: the names one under the other (1st, 2nd, 3rd...)
   function setColumns(n) {
     nCols = n;
-    $('cols').innerHTML = '<div>Shift<i>time</i></div><div>Team<i>post</i></div><div>Officers<i>on duty</i></div><div>Information<i>messages for the team</i></div>';
+    $('cols').innerHTML = '<div>Shift<i>time</i></div><div>Team<i>post</i></div><div>Officers<i>on duty</i></div><div class="pgh">Information<i>messages for the team</i><b id="pgInfo"></b></div>';
   }
   setColumns(2);
   // only the supervisor's messages for that team (typed in the dashboard, Announcements tab)
@@ -220,7 +222,22 @@
       box.innerHTML = '<div class="empty">No crew received from the Duty Roster for today<small>In the Duty Roster open today, press "Mark day as ready" and wait a minute. The names appear here automatically.</small></div>';
       return;
     }
-    var sig = JSON.stringify(list.map(function (r) { return [r.key, r.code, r.name, r.time, r.ppl]; }));
+    // TV: letters stay big; when the teams do not fit, they are shown in pages that change by themselves
+    var narrowP = window.matchMedia && window.matchMedia('(max-width: 800px)').matches;
+    var linesOf = function (r) { return Math.max(1, Math.round(r.ppl.length * 0.62 * 100) / 100); };
+    var groups = [list];
+    pageLines = 0;
+    if (!narrowP) {
+      var maxL = Math.max(1, Math.floor(box.clientHeight / (window.innerHeight * MIN_LINE)));
+      groups = []; var cur = [], used = 0;
+      list.forEach(function (r) { var l = linesOf(r); if (cur.length && used + l > maxL) { groups.push(cur); cur = []; used = 0; } cur.push(r); used += l; });
+      if (cur.length) groups.push(cur);
+      if (groups.length > 1) pageLines = Math.max.apply(null, groups.map(function (g) { return g.reduce(function (a, r) { return a + linesOf(r); }, 0); }));
+    }
+    pages = groups.length; if (page >= pages) page = 0;
+    list = groups[page];
+    var pi = $('pgInfo'); if (pi) pi.textContent = pages > 1 ? 'Page ' + (page + 1) + ' / ' + pages : '';
+    var sig = JSON.stringify([page, pages, list.map(function (r) { return [r.key, r.code, r.name, r.time, r.ppl]; })]);
     if (sig !== staticSig) {
       staticSig = sig; infoAnims = {};
       // 3rd, 4th... officer: an extra line in the same row, name under name (3rd under Officer 1, 4th under Officer 2)
@@ -249,6 +266,8 @@
       infoAnims[r.key] = { html: html, anim: scroll(span, row.querySelector('.info')) };
     });
   }
+  var MIN_LINE = 0.08, page = 0, pages = 1, pageLines = 0;   // smallest line = 8% of the screen height
+  setInterval(function () { if (pages > 1) { page = (page + 1) % pages; render(); } }, 15000);
   // right to left, continuous, same speed on every line
   function scroll(span, cell) {
     if (!span.textContent || !span.animate) return null;
@@ -259,7 +278,7 @@
   function fitRows() {
     var box = $('rows'), n = 0;
     Array.prototype.forEach.call(box.querySelectorAll('.row'), function (r) { n += Number(r.getAttribute('data-l')) || 1; });
-    n = n || 1;
+    n = Math.max(n || 1, pageLines);   // every page with the same letter size
     var narrow = window.matchMedia && window.matchMedia('(max-width: 800px)').matches;
     if (narrow) { document.documentElement.style.removeProperty('--rh'); return; }
     // also limited by the width, so names fit their column (more officer columns = narrower columns)
