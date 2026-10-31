@@ -25,7 +25,7 @@
   .brand b { display: block; font-size: 5vh; letter-spacing: .06em; }
   .brand span { display: block; font-size: 2vh; font-weight: 700; letter-spacing: .3em; }
   .brand i { display: block; font-size: 2.3vh; color: var(--soft); margin-top: .4vh; font-style: normal; }
-  .cols, .row { display: grid; grid-template-columns: var(--gcols, minmax(0,9fr) minmax(0,8fr) minmax(0,19fr) minmax(0,19fr) minmax(0,45fr)); align-items: center; column-gap: 1vw; padding: 0 1.6vw; }
+  .cols, .row { display: grid; grid-template-columns: var(--gcols, minmax(0,10.5fr) minmax(0,8.5fr) minmax(0,30fr) minmax(0,51fr)); align-items: center; column-gap: 1vw; padding: 0 1.6vw; }
   .cols { padding-top: .6vh; padding-bottom: .9vh; font-size: 2.5vh; color: var(--ink); line-height: 1.15; border-bottom: 1px solid rgba(255,255,255,.12); background: linear-gradient(180deg, #1238a6, #1546c9); }
   .cols i { display: block; color: var(--ink); opacity: .9; }
   #rows { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -43,9 +43,33 @@
   .info .cu { color: var(--yel); font-weight: 700; }
   .empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 4vh; color: var(--soft); text-align: center; padding: 4vh; background: var(--blue1); }
   .empty small { font-size: 2.4vh; margin-top: 1.5vh; max-width: 70vw; }
-  /* bottom announcements line */
+  /* teams on the left, news panel (TV) on the right when there is news */
+  .main { flex: 1; min-height: 0; display: flex; }
+  .left { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #news { display: none; flex: 0 0 38%; min-width: 0; flex-direction: column; background: #0a1a4d; border-left: 2px solid #3f6be0; }
+  body.hasnews #news { display: flex; }
+  @media (min-width: 801px) {
+    body.hasnews .cols, body.hasnews .row { grid-template-columns: minmax(0,13fr) minmax(0,10.5fr) minmax(0,34fr) minmax(0,42.5fr); }
+    body.hasnews .cols i { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  }
+  .nwhead { display: flex; align-items: center; gap: 1vw; padding: .9vh 1.2vw; background: #0b1f63; border-bottom: 1px solid rgba(255,255,255,.12); }
+  .nwhead b { background: #d6211f; color: #fff; padding: .35vh .8vw; font-size: 2.6vh; letter-spacing: .14em; }
+  .nwhead i { font-style: normal; font-size: 2.2vh; color: var(--soft); letter-spacing: .08em; text-transform: uppercase; }
+  .nwhead span { margin-left: auto; color: var(--soft); font-size: 2vh; font-variant-numeric: tabular-nums; }
+  #nwCard { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 1.3vh; padding: 1.6vh 1.3vw; overflow: hidden; }
+  #nwCard.in { animation: nwIn .7s ease-out; }
+  @keyframes nwIn { from { opacity: 0; transform: translateY(1.5vh); } to { opacity: 1; transform: none; } }
+  .nwm { flex: 0 1 auto; width: 100%; aspect-ratio: 16 / 9; max-height: 58%; background: #000; border-radius: 4px; overflow: hidden; }
+  .nwm img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .nwm iframe { width: 100%; height: 100%; border: 0; display: block; }
+  .nwt { font-size: 4.4vh; font-weight: 800; color: var(--yel); line-height: 1.1; overflow-wrap: anywhere; }
+  #nwCard.nomedia .nwt { font-size: 6vh; }
+  .nwx { flex: 1; min-height: 0; overflow: hidden; font-size: 2.9vh; line-height: 1.3; color: #fff; white-space: pre-line; overflow-wrap: anywhere; }
+  /* bottom line: news headlines + announcements, TV style */
   #ticker { display: none; overflow: hidden; white-space: nowrap; background: #0b1f63; border-top: 2px solid var(--yel); }
-  #ticker.on { display: block; }
+  #ticker.on { display: flex; align-items: stretch; }
+  #tkLbl { flex: none; display: flex; align-items: center; background: #d6211f; color: #fff; font-weight: 800; letter-spacing: .12em; padding: 0 1.2vw; font-size: 3vh; }
+  #tkw { flex: 1; min-width: 0; overflow: hidden; }
   #tk { display: inline-block; padding: .8vh 0; font-size: 3.8vh; color: var(--yel); font-weight: 700; will-change: transform; }
   footer { display: flex; justify-content: space-between; align-items: center; color: #8ea7e6; font-size: 1.6vh; padding-top: .7vh; }
   .dot { display: inline-block; width: 1.1vh; height: 1.1vh; border-radius: 50%; background: #4ade80; margin-right: .5vw; vertical-align: middle; }
@@ -66,6 +90,19 @@
     .nm { font-size: calc(var(--rh) * .52); }
     .info span { font-size: calc(var(--rh) * .44); }
     #tk { font-size: 4.2vh; }
+  }
+  /* phone: the news card goes under the teams */
+  @media (max-width: 800px) {
+    /* news and the announcement line first, the teams under them: nobody misses the announcements */
+    .main { flex-direction: column; order: 3; }
+    header { order: 1; } #ticker { order: 2; border-top: 0; border-bottom: 2px solid var(--yel); }
+    #news { flex: none; order: -1; border-left: 0; border-bottom: 2px solid #3f6be0; }
+    .nwhead b { font-size: 14px; padding: 3px 8px; } .nwhead i { font-size: 12px; } .nwhead span { font-size: 12px; }
+    #nwCard { padding: 12px; gap: 10px; }
+    .nwm { max-height: none; }
+    .nwt, #nwCard.nomedia .nwt { font-size: 22px; }
+    .nwx { font-size: 16px; overflow: visible; }
+    #tkLbl { font-size: 14px; padding: 0 10px; }
   }
   /* phone (QR code): one card per team, the page scrolls */
   @media (max-width: 800px) {
@@ -96,9 +133,14 @@
       <div class="clock" id="clock">--:--:--</div>
       <div class="brand"><b>BVN</b><span>BIDVEST NOONAN</span><i id="day"></i></div>
     </header>
-    <div class="cols" id="cols"></div>
-    <div id="rows"></div>
-    <div id="ticker"><div id="tk"></div></div>
+    <div class="main">
+      <div class="left">
+        <div class="cols" id="cols"></div>
+        <div id="rows"></div>
+      </div>
+      <aside id="news"><div class="nwhead"><b>NEWS</b><i>Connolly</i><span id="nwCount"></span></div><div id="nwCard"></div></aside>
+    </div>
+    <div id="ticker"><span id="tkLbl">INFO</span><div id="tkw"><div id="tk"></div></div></div>
   </div>
   <footer><span><span class="dot" id="dot"></span><span id="status">Loading...</span></span><span><button id="fs">Full screen</button></span></footer>
 </div>
@@ -161,14 +203,10 @@
   // header and column widths for 2, 3 or 4 officers; the information column gives up the space
   var SUBS = ['phone · bodycam 1', 'key · bodycam 2', 'bodycam 3', 'bodycam 4'];
   var nCols = 2;
+  // one officers column: the names one under the other (1st, 2nd, 3rd...)
   function setColumns(n) {
     nCols = n;
-    var of = n === 2 ? 19 : n === 3 ? 16 : 14, info = 100 - 17 - n * of, t = 'minmax(0,9fr) minmax(0,8fr)';
-    for (var i = 0; i < n; i++) t += ' minmax(0,' + of + 'fr)';
-    document.documentElement.style.setProperty('--gcols', t + ' minmax(0,' + info + 'fr)');
-    var h = '<div>Shift<i>time</i></div><div>Team<i>post</i></div>';
-    for (var j = 0; j < n; j++) h += '<div>Officer ' + (j + 1) + '<i>' + SUBS[j] + '</i></div>';
-    $('cols').innerHTML = h + '<div>Information<i>messages for the team</i></div>';
+    $('cols').innerHTML = '<div>Shift<i>time</i></div><div>Team<i>post</i></div><div>Officers<i>on duty</i></div><div>Information<i>messages for the team</i></div>';
   }
   setColumns(2);
   // only the supervisor's messages for that team (typed in the dashboard, Announcements tab)
@@ -188,11 +226,11 @@
       // 3rd, 4th... officer: an extra line in the same row, name under name (3rd under Officer 1, 4th under Officer 2)
       var narrow = window.matchMedia && window.matchMedia('(max-width: 800px)').matches;
       box.innerHTML = list.map(function (r) {
-        var sp = shiftParts(r.time), lines = Math.max(1, Math.ceil(r.ppl.length / 2)), c1 = '', c2 = '';
-        r.ppl.forEach(function (p, k) { if (narrow || k % 2 === 0) c1 += personHtml(p); else c2 += personHtml(p); });
+        // row height follows the number of names (each name a bit more than half a standard line)
+        var sp = shiftParts(r.time), lines = Math.max(1, Math.round(r.ppl.length * 0.62 * 100) / 100), c1 = '';
+        r.ppl.forEach(function (p) { c1 += personHtml(p); });
         if (!r.ppl.length) c1 = personHtml(null);
-        if (!narrow && r.ppl.length < 2) c2 = personHtml(null);
-        var cells = '<div class="n1">' + c1 + '</div><div class="n2">' + c2 + '</div>';
+        var cells = '<div class="n1">' + c1 + '</div>';
         return '<div class="row" data-k="' + esc(r.key) + '" data-l="' + lines + '" style="flex-grow:' + lines + ';max-height:' + (15 * lines) + 'vh">' +
           '<div class="tm">' + (sp.start ? esc(sp.start) + (sp.end ? '<small>&rarr; ' + esc(sp.end) + '</small>' : '') : '&mdash;') + '</div>' +
           '<div class="bx"><span class="box">' + esc(r.code) + '</span><span class="tn">' + esc(r.name) + '</span></div>' +
@@ -225,7 +263,7 @@
     var narrow = window.matchMedia && window.matchMedia('(max-width: 800px)').matches;
     if (narrow) { document.documentElement.style.removeProperty('--rh'); return; }
     // also limited by the width, so names fit their column (more officer columns = narrower columns)
-    var h = Math.min(box.clientHeight / n, window.innerHeight * 0.15, window.innerWidth * 0.04);
+    var h = Math.min(box.clientHeight / n, window.innerHeight * 0.15, box.clientWidth * (document.body.classList.contains('hasnews') ? 0.068 : 0.065));
     document.documentElement.style.setProperty('--rh', Math.max(18, Math.floor(h)) + 'px');
   }
   window.addEventListener('resize', function () { fitRows(); staticSig = ''; render(); });
@@ -234,7 +272,7 @@
   function load() {
     getJSON('format=board').then(function (r) {
       if (!r || !Array.isArray(r.rows) || !Array.isArray(r.teams)) throw new Error('bad');
-      data = r; lastOk = Date.now(); tick(); render();
+      data = r; lastOk = Date.now(); tick(); applyNews(Array.isArray(r.news) ? r.news : []); render();
       setStatus(true, 'Updated ' + new Date().toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Dublin' }) + ' · refreshes every minute');
     }).catch(function () {
       setStatus(false, lastOk ? 'No connection - showing the last update (' + new Date(lastOk).toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' }) + ')' : 'No connection');
@@ -263,7 +301,7 @@
     box.classList.add('on'); tk.textContent = texts.join('      ◆      '); fitRows();
     if (tickAnim) tickAnim.cancel();
     if (!tk.animate) return;
-    var w = tk.scrollWidth, cw = box.clientWidth, speed = Math.max(90, cw / 14);
+    var w = tk.scrollWidth, cw = $('tkw').clientWidth, speed = Math.max(90, cw / 14);
     tickAnim = tk.animate([{ transform: 'translateX(' + cw + 'px)' }, { transform: 'translateX(' + (-w) + 'px)' }], { duration: (w + cw) / speed * 1000, iterations: Infinity });
   }
   function fitPop() {
@@ -281,11 +319,62 @@
   }
   function applyAnnouncements(items) {
     var ticks = items.filter(function (a) { return a.mode !== 'popup'; }), pp = items.filter(function (a) { return a.mode === 'popup'; });
-    var ts = JSON.stringify(ticks.map(function (a) { return a.text; }));
-    if (ts !== annSig) { annSig = ts; showTicker(ticks.map(function (a) { return a.text; })); }
+    annTexts = ticks.map(function (a) { return a.text; });
+    refreshTicker();
     var ps = JSON.stringify(pp.map(function (a) { return [a.id, a.text, a.showSec, a.gapSec]; }));
     if (ps !== popSig) { popSig = ps; pops = pp; popIdx = 0; popCycle(); }
   }
+  // bottom line = announcements + headlines of the news marked for it
+  var annTexts = [], newsHeads = [];
+  function refreshTicker() {
+    var all = annTexts.concat(newsHeads), sig = JSON.stringify(all);
+    if (sig === annSig) return;
+    annSig = sig;
+    $('tkLbl').textContent = newsHeads.length ? 'NEWS' : 'INFO';
+    showTicker(all);
+  }
+
+  /* ---- News panel (TV): one item at a time, photo or video (muted) ---- */
+  var news = [], nwIdx = 0, nwT = null, nwSig = '';
+  function embedUrl(u) {
+    var m = /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{11})/.exec(u || '');
+    if (m) return 'https://www.youtube.com/embed/' + m[1] + '?autoplay=1&mute=1&loop=1&playlist=' + m[1] + '&controls=0&rel=0&modestbranding=1&playsinline=1';
+    m = /drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:.*&)?id=)([\w-]+)/.exec(u || '');
+    if (m) return 'https://drive.google.com/file/d/' + m[1] + '/preview';
+    return '';
+  }
+  function fitNewsText() {
+    var x = document.querySelector('#nwCard .nwx'); if (!x || window.matchMedia('(max-width: 800px)').matches) return;
+    x.style.fontSize = ''; var fs = parseFloat(getComputedStyle(x).fontSize), min = window.innerHeight * 0.017;
+    while (fs > min && x.scrollHeight > x.clientHeight + 1) { fs *= 0.92; x.style.fontSize = fs + 'px'; }
+  }
+  function showNews() {
+    clearTimeout(nwT);
+    var card = $('nwCard');
+    if (!news.length) { card.innerHTML = ''; $('nwCount').textContent = ''; return; }
+    var it = news[nwIdx % news.length], src = it.video ? embedUrl(it.video) : '';
+    var media = src ? '<div class="nwm"><iframe src="' + esc(src) + '" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>'
+      : (it.image ? '<div class="nwm"><img src="' + esc(it.image) + '" alt=""></div>' : '');
+    card.className = media ? '' : 'nomedia';
+    card.innerHTML = media + '<div class="nwt">' + esc(it.title) + '</div>' + (it.text ? '<div class="nwx">' + esc(it.text) + '</div>' : '');
+    void card.offsetWidth; card.classList.add('in');
+    $('nwCount').textContent = news.length > 1 ? (nwIdx % news.length + 1) + ' / ' + news.length : '';
+    fitNewsText();
+    if (news.length > 1) nwT = setTimeout(function () { nwIdx++; showNews(); }, src ? 60000 : 12000 + Math.min(String(it.text || '').length * 40, 12000));
+  }
+  // only rebuilt when the news change, so a video is not restarted by the refresh every minute
+  function applyNews(list) {
+    var sig = JSON.stringify(list);
+    if (sig === nwSig) return;
+    nwSig = sig; news = list; nwIdx = 0;
+    document.body.classList.toggle('hasnews', list.length > 0);
+    showNews();
+    newsHeads = list.filter(function (n) { return n.ticker; }).map(function (n) { return n.title; });
+    refreshTicker();
+    staticSig = ''; fitRows();
+  }
+  window.addEventListener('resize', fitNewsText);
+
   function loadAnn() { getJSON('format=announcements').then(function (r) { if (r && Array.isArray(r.items)) { annLast = r.items; applyAnnouncements(annLast); } }).catch(function () {}); }
   setInterval(loadAnn, 30000);
   window.addEventListener('resize', function () { if ($('pop').classList.contains('on')) fitPop(); annSig = ''; applyAnnouncements(annLast); });
