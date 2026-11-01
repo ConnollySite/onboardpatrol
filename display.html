@@ -25,10 +25,11 @@
   .brand b { display: block; font-size: 5vh; letter-spacing: .06em; }
   .brand span { display: block; font-size: 2vh; font-weight: 700; letter-spacing: .3em; }
   .brand i { display: block; font-size: 2.3vh; color: var(--soft); margin-top: .4vh; font-style: normal; }
-  .cols, .row { display: grid; grid-template-columns: var(--gcols, minmax(0,10.5fr) minmax(0,8.5fr) minmax(0,30fr) minmax(0,51fr)); align-items: center; column-gap: 1vw; padding: 0 1.6vw; }
+  .cols, .row { display: grid; grid-template-columns: var(--gcols, minmax(0,10.5fr) minmax(0,8.5fr) minmax(0,38fr) minmax(0,43fr)); align-items: center; column-gap: 1vw; padding: 0 1.6vw; }
   .cols { padding-top: .6vh; padding-bottom: .9vh; font-size: 2.5vh; color: var(--ink); line-height: 1.15; border-bottom: 1px solid rgba(255,255,255,.12); background: linear-gradient(180deg, #1238a6, #1546c9); }
   .cols i { display: block; color: var(--ink); opacity: .9; }
-  .pgh { position: relative; }
+  .pgh { position: relative; padding-right: 7em; }
+  .pgh i { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #pgInfo { position: absolute; right: 0; top: 50%; transform: translateY(-50%); color: var(--yel); font-weight: 700; font-size: 1.15em; }
   #rows { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .row { flex: 1 1 0; min-height: 0; max-height: 15vh; background: var(--blue1); }
@@ -40,6 +41,7 @@
   .nm { font-size: calc(var(--rh) * .42); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1; }
   .nm small { display: block; font-size: .55em; color: var(--yel); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .nm.none { color: rgba(255,255,255,.45); }
+  .rc { display: inline-block; min-width: 2.7em; margin-right: .4em; padding: .06em .3em; border-radius: 3px; background: var(--yel); color: #0b1f63; font-size: .62em; font-weight: 800; letter-spacing: .03em; text-align: center; vertical-align: .14em; line-height: 1.25; }
   .info { overflow: hidden; white-space: nowrap; position: relative; height: 100%; display: flex; align-items: center; mask-image: linear-gradient(90deg, transparent 0, #000 2%, #000 98%, transparent 100%); -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 2%, #000 98%, transparent 100%); }
   .info span { display: inline-block; font-size: calc(var(--rh) * .36); will-change: transform; }
   .info .cu { color: var(--yel); font-weight: 700; }
@@ -51,7 +53,7 @@
   #news { display: none; flex: 0 0 38%; min-width: 0; flex-direction: column; background: #0a1a4d; border-left: 2px solid #3f6be0; }
   body.hasnews #news { display: flex; }
   @media (min-width: 801px) {
-    body.hasnews .cols, body.hasnews .row { grid-template-columns: minmax(0,13fr) minmax(0,10.5fr) minmax(0,34fr) minmax(0,42.5fr); }
+    body.hasnews .cols, body.hasnews .row { grid-template-columns: minmax(0,13fr) minmax(0,10.5fr) minmax(0,44fr) minmax(0,32.5fr); }
     body.hasnews .cols i { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   }
   .nwhead { display: flex; align-items: center; gap: 1vw; padding: .9vh 1.2vw; background: #0b1f63; border-bottom: 1px solid rgba(255,255,255,.12); }
@@ -185,22 +187,28 @@
         used[r.post + '|' + r.team] = true;
         if (!time && r.time) time = r.time;
         (r.names || []).forEach(function (n, k) {
-          var note = (r.notes && r.notes[k]) || '';
+          var note = (r.notes && r.notes[k]) || '', rc = radioShort((r.codes || [])[k]);
           var f = ppl.filter(function (x) { return x.name === n; })[0];
-          if (f) { if (!f.note && note) f.note = note; } else ppl.push({ name: n, note: note });
+          if (f) { if (!f.note && note) f.note = note; if (!f.rc && rc) f.rc = rc; } else ppl.push({ name: n, note: note, rc: rc });
         });
       });
       out.push({ key: t.code, code: t.code, name: t.name, time: time, ppl: ppl, msgs: (data.msgs || {})[t.code] || [] });
     });
     rows.filter(function (r) { return !used[r.post + '|' + r.team] && (r.names || []).length; }).forEach(function (r) {
-      out.push({ key: 'post:' + r.post, code: /supervisor/i.test(r.post) ? 'SUP' : initials(r.post), name: r.post, time: r.time || '', ppl: r.names.map(function (n, k) { return { name: n, note: (r.notes && r.notes[k]) || '' }; }), msgs: [] });
+      out.push({ key: 'post:' + r.post, code: /supervisor/i.test(r.post) ? 'SUP' : initials(r.post), name: r.post, time: r.time || '', ppl: r.names.map(function (n, k) { return { name: n, note: (r.notes && r.notes[k]) || '', rc: radioShort((r.codes || [])[k]) }; }), msgs: [] });
     });
     return out;
+  }
+  // "SL1:2400 130" -> "SL1" (the radio call sign shown beside the name)
+  function radioShort(c) {
+    c = String(c || '').trim(); if (!c) return '';
+    var m = /^([A-Za-z]+\s?\d*)\s*:/.exec(c);
+    return (m ? m[1] : c.split(/\s+/)[0]).replace(/\s+/g, '').slice(0, 6).toUpperCase();
   }
   function personHtml(p, extra) {
     if (!p) return '<div class="nm none">&mdash;</div>';
     var sub = [p.note, extra].filter(Boolean).join(' · ');
-    return '<div class="nm">' + esc(p.name) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div>';
+    return '<div class="nm">' + (p.rc ? '<span class="rc">' + esc(p.rc) + '</span>' : '') + esc(p.name) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div>';
   }
   // header and column widths for 2, 3 or 4 officers; the information column gives up the space
   var SUBS = ['phone · bodycam 1', 'key · bodycam 2', 'bodycam 3', 'bodycam 4'];
