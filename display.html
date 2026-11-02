@@ -275,7 +275,7 @@
     });
   }
   var MIN_LINE = 0.08, page = 0, pages = 1, pageLines = 0;   // smallest line = 8% of the screen height
-  setInterval(function () { if (pages > 1) { page = (page + 1) % pages; render(); } }, 15000);
+  setInterval(function () { if (pages > 1) { page = (page + 1) % pages; render(); } }, 7500);   // each page of teams: 7.5 s
   // right to left, continuous, same speed on every line
   function scroll(span, cell) {
     if (!span.textContent || !span.animate) return null;
@@ -322,14 +322,24 @@
 
   /* ---- Announcements (public feed): bottom line + full-screen pop-up ---- */
   var annSig = '', tickAnim = null, pops = [], popIdx = 0, popT = null, popSig = '', annLast = [];
+  // one announcement at a time: it crosses the screen, then the next one comes in (then back to the first)
+  var tkList = [], tkIdx = 0;
   function showTicker(texts) {
     var box = $('ticker'), tk = $('tk');
-    if (!texts.length) { if (tickAnim) tickAnim.cancel(); tickAnim = null; box.classList.remove('on'); tk.textContent = ''; fitRows(); return; }
-    box.classList.add('on'); tk.textContent = texts.join('      ◆      '); fitRows();
-    if (tickAnim) tickAnim.cancel();
-    if (!tk.animate) return;
+    if (tickAnim) { tickAnim.onfinish = null; tickAnim.cancel(); } tickAnim = null;
+    tkList = texts.slice(); tkIdx = 0;
+    if (!texts.length) { box.classList.remove('on'); tk.textContent = ''; fitRows(); return; }
+    box.classList.add('on'); fitRows();
+    tickNext();
+  }
+  function tickNext() {
+    var tk = $('tk');
+    if (!tkList.length) return;
+    tk.textContent = tkList[tkIdx % tkList.length];
+    if (!tk.animate) { tk.textContent = tkList.join('   ◆   '); return; }
     var w = tk.scrollWidth, cw = $('tkw').clientWidth, speed = Math.max(90, cw / 14);
-    tickAnim = tk.animate([{ transform: 'translateX(' + cw + 'px)' }, { transform: 'translateX(' + (-w) + 'px)' }], { duration: (w + cw) / speed * 1000, iterations: Infinity });
+    tickAnim = tk.animate([{ transform: 'translateX(' + cw + 'px)' }, { transform: 'translateX(' + (-w) + 'px)' }], { duration: (w + cw) / speed * 1000, iterations: tkList.length > 1 ? 1 : Infinity });
+    tickAnim.onfinish = function () { tkIdx++; tickNext(); };
   }
   function fitPop() {
     var t = $('popText'), box = $('pop'), fs = Math.round(window.innerHeight * 0.18);
