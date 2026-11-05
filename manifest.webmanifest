@@ -1,6 +1,6 @@
 {
-  "name": "Onboard Patrol",
-  "short_name": "Onboard Patrol",
+  "name": "On-Board Patrol",
+  "short_name": "On-Board Patrol",
   "description": "DART / Northern Commuter station scanning",
   "start_url": "./",
   "scope": "./",
