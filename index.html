@@ -20,10 +20,12 @@
   .sub { color: var(--sub); font-size: 14px; margin-bottom: 20px; text-align: center; }
   .card { background: var(--card); border-radius: 16px; padding: 20px; width: 100%; max-width: 420px; margin-bottom: 16px; }
   .hidden { display: none !important; }
-  #annBar { margin: 8px 0 12px; border-left: 5px solid #1D4ED8; background: #fff; border-radius: 10px; padding: 10px 12px; box-shadow: 0 1px 4px rgba(15,23,42,.12); }
+  #annBar { width: 100%; max-width: 420px; box-sizing: border-box; margin: 8px 0 12px; border-left: 5px solid #1D4ED8; background: #fff; border-radius: 10px; padding: 10px 12px; box-shadow: 0 1px 4px rgba(15,23,42,.12); }
   #annBar .at { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #1D4ED8; margin-bottom: 4px; }
   #annBar .ai { font-size: 15px; font-weight: 600; line-height: 1.35; color: #0F172A; padding: 3px 0; }
   #annBar .ai + .ai { border-top: 1px dashed #D5DCE6; margin-top: 3px; padding-top: 6px; }
+  #annBar .am { overflow: hidden; white-space: nowrap; padding: 3px 0; }
+  #annBar .am span { display: inline-block; font-size: 15px; font-weight: 600; color: #0F172A; will-change: transform; }
   label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; margin-top: 14px; }
   input, select {
     width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--line);
@@ -1132,8 +1134,20 @@ const LS_ANN = 'onboardpatrol_ann';
 function renderAnn(items){
   const box = $('annBar');
   if(!items || !items.length){ box.classList.add('hidden'); box.innerHTML = ''; return; }
-  box.innerHTML = '<div class="at">Announcement</div>' + items.map(a => '<div class="ai">' + String(a.text).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) + '</div>').join('');
+  const esc1 = t => String(t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  // each announcement: still text box, or a line scrolling right to left (chosen by the supervisor)
+  const sig = JSON.stringify(items.map(a => [a.id, a.text, a.phone]));
+  if(box.dataset.sig === sig && !box.classList.contains('hidden')) return;   // same content: do not restart the scrolling
+  box.dataset.sig = sig;
+  box.innerHTML = '<div class="at">Announcement</div>' + items.map(a => a.phone === 'scroll'
+    ? '<div class="ai am"><span>' + esc1(a.text) + '</span></div>'
+    : '<div class="ai">' + esc1(a.text) + '</div>').join('');
   box.classList.remove('hidden');
+  box.querySelectorAll('.am').forEach(row => {
+    const sp = row.firstChild; if(!sp.animate) return;
+    const w = sp.scrollWidth, cw = row.clientWidth || (window.innerWidth - 60), speed = 70;   // pixels per second
+    sp.animate([{ transform: 'translateX(' + cw + 'px)' }, { transform: 'translateX(' + (-w) + 'px)' }], { duration: (w + cw) / speed * 1000, iterations: Infinity });
+  });
 }
 async function pollAnn(){
   try{
