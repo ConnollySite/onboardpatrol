@@ -273,13 +273,30 @@
       span.innerHTML = html;
       infoAnims[r.key] = { html: html, anim: scroll(span, row.querySelector('.info')) };
     });
+    schedulePage();
   }
   var MIN_LINE = 0.08, page = 0, pages = 1, pageLines = 0;   // smallest line = 8% of the screen height
-  setInterval(function () { if (pages > 1) { page = (page + 1) % pages; render(); } }, 7500);   // each page of teams: 7.5 s
+  // each page of teams: at least 7.5 s, and never before every scrolling message on it has gone across once
+  var PAGE_MIN_MS = 7500, pageTimer = null, pageShownAt = Date.now(), pageShown = -1;
+  function pageNeedMs() {
+    var need = PAGE_MIN_MS;
+    Object.keys(infoAnims).forEach(function (k) { var a = infoAnims[k] && infoAnims[k].anim; if (a && a.effect) { var d = a.effect.getTiming().duration; if (d > need) need = d; } });
+    return need + 400;
+  }
+  function schedulePage() {
+    clearTimeout(pageTimer);
+    if (pages <= 1) return;
+    if (page !== pageShown) { pageShown = page; pageShownAt = Date.now(); }
+    var wait = Math.max(500, pageNeedMs() - (Date.now() - pageShownAt));
+    pageTimer = setTimeout(function () {
+      if (Date.now() - pageShownAt + 50 < pageNeedMs()) { schedulePage(); return; }   // a message got longer: wait for it
+      page = (page + 1) % pages; render();
+    }, wait);
+  }
   // right to left, continuous, same speed on every line
   function scroll(span, cell) {
     if (!span.textContent || !span.animate) return null;
-    var w = span.scrollWidth, cw = cell.clientWidth, speed = Math.max(60, cw / 9);
+    var w = span.scrollWidth, cw = cell.clientWidth, speed = Math.max(120, cw / 5);   // faster
     return span.animate([{ transform: 'translateX(' + cw + 'px)' }, { transform: 'translateX(' + (-w) + 'px)' }], { duration: (w + cw) / speed * 1000, iterations: Infinity });
   }
   // every line gets the same height; text size follows the line height
@@ -337,7 +354,7 @@
     if (!tkList.length) return;
     tk.textContent = tkList[tkIdx % tkList.length];
     if (!tk.animate) { tk.textContent = tkList.join('   ◆   '); return; }
-    var w = tk.scrollWidth, cw = $('tkw').clientWidth, speed = Math.max(90, cw / 14);
+    var w = tk.scrollWidth, cw = $('tkw').clientWidth, speed = Math.max(150, cw / 7);   // faster
     tickAnim = tk.animate([{ transform: 'translateX(' + cw + 'px)' }, { transform: 'translateX(' + (-w) + 'px)' }], { duration: (w + cw) / speed * 1000, iterations: tkList.length > 1 ? 1 : Infinity });
     tickAnim.onfinish = function () { tkIdx++; tickNext(); };
   }
