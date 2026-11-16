@@ -1339,24 +1339,27 @@ function renderBoard(){
   if(contentView !== 'trains' || trainTab === 'all') return;
   const box = $('tBoard'); if(!box) return;
   if(!stationData){ box.innerHTML = '<div class="note">Loading…</div>'; return; }
-  if(!stationData.ok){ box.innerHTML = '<div class="note">Could not get the Connolly board from Irish Rail right now. Try again in a minute.</div>'; return; }
+  if(!stationData.ok){ box.innerHTML = '<div class="note">Could not get the Connolly board from Irish Rail right now. Try again in a minute.' + (stationData.error ? ' (' + esc(stationData.error) + ')' : '') + '</div>'; return; }
   const dep = trainTab === 'dep';
   // departures: trains that start or stop here; arrivals: trains that end or stop here
   let rows = stationData.rows.filter(r => dep ? (r.type === 'O' || r.type === 'S') : (r.type === 'D' || r.type === 'S'));
   rows.sort((a, b) => a.dueIn - b.dueIn);
   const at = new Date(stationData.at);
-  let h = '<div class="note" style="margin-top:0">Next 90 minutes · updated ' + at.toLocaleTimeString('en-IE', { hour:'2-digit', minute:'2-digit' }) + ' · tap a train to see where it is</div>';
+  let h = '<div class="note" style="margin-top:0">' + esc(stationData.name || 'Connolly') + ' · next 90 minutes · Irish Rail time ' + esc(stationData.query || at.toLocaleTimeString('en-IE', { hour:'2-digit', minute:'2-digit' })) + ' · tap a train to see where it is</div>';
   if(!rows.length){ box.innerHTML = h + '<div class="note">No ' + (dep ? 'departures' : 'arrivals') + ' in the next 90 minutes.</div>'; return; }
   h += '<table class="mv brd"><thead><tr><th>Train</th><th>' + (dep ? 'To' : 'From') + '</th><th>Sched.</th><th>Expected</th><th>Late</th></tr></thead><tbody>';
   rows.forEach(r => {
     const sch = tm(dep ? r.schDep : r.schArr) || tm(r.schArr) || tm(r.schDep), exp = tm(dep ? r.expDep : r.expArr) || tm(r.expArr) || tm(r.expDep);
-    const late = r.late > 0 ? '<span class="late">+' + r.late + ' min</span>' : r.late < 0 ? '<span class="ontime">' + r.late + ' min</span>' : '<span class="ontime">on time</span>';
+    r.late = Math.max(r.late || 0, diffMin(sch, exp));   // the bigger of Irish Rail's "late" and expected − scheduled
+    const live = !!(r.last || (r.status && !/no information/i.test(r.status)));
+    const late = r.late > 0 ? '<span class="late">+' + r.late + ' min</span>' : r.late < 0 ? '<span class="ontime">' + r.late + ' min</span>' : live ? '<span class="ontime">on time</span>' : '<span style="color:var(--sub);font-size:12px">timetable</span>';
     h += '<tr data-id="' + esc(r.id) + '" data-date="' + esc(r.date) + '"' + (r.late >= 10 ? ' class="bad"' : '') + '><td>' + esc(r.id) + '</td><td>' + esc(dep ? r.dest : r.origin) +
       (r.last ? '<div class="note" style="margin:2px 0 0;font-size:11px">' + esc(r.last) + '</div>' : '') + '</td><td>' + esc(sch) + '</td><td>' + esc(exp) + '</td><td>' + late + '</td></tr>';
   });
-  box.innerHTML = h + '</tbody></table><div class="note">Red rows: 10 minutes late or more · updates every 30 seconds</div>';
+  box.innerHTML = h + '</tbody></table><div class="note">Red rows: 10 minutes late or more · "timetable" = not started yet or no live position · updates every 30 seconds</div>';
   box.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => openTrainMoves(tr.getAttribute('data-id'), tr.getAttribute('data-date'))));
 }
+function diffMin(a, b){ if(!a || !b) return 0; const x = a.split(':'), y = b.split(':'); let d = (+y[0]*60 + +y[1]) - (+x[0]*60 + +x[1]); if(d < -720) d += 1440; if(d > 720) d -= 1440; return d; }
 function tm(v){ return v && !/^00:00(:00)?$/.test(v) ? String(v).slice(0, 5) : ''; }
 function renderTrainMoves(d){
   if(contentView !== 'tmove') return;

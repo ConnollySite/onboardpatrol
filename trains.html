@@ -52,7 +52,7 @@
     <input type="search" id="q" placeholder="Train ID (e.g. E109), station or line…" autocomplete="off">
     <div id="all"></div>
   </div>
-  <div class="note">Data from Irish Rail (realtime) · red rows: 10 minutes late or more · updates every 30 seconds · click a train to see its movements. Irish Rail does not publish platform numbers.</div>
+  <div class="note">Data from Irish Rail (realtime) · red rows: 10 minutes late or more · "timetable" = the train has not started or Irish Rail has no live position for it · updates every 30 seconds · click a train to see its movements. Irish Rail does not publish platform numbers.</div>
 </main>
 <div id="mv"><div class="box"><div class="head"><h3 id="mvTitle"></h3><button id="mvClose">Close</button></div><div id="mvBody"></div></div></div>
 <script>
@@ -62,19 +62,23 @@ function $(id) { return document.getElementById(id); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function get(q) { return fetch(EXEC + '?' + q + '&t=' + Date.now()).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; }); }
 function tm(v) { return v && !/^00:00(:00)?$/.test(v) ? String(v).slice(0, 5) : ''; }
-function lateCell(n) { return n > 0 ? '<span class="late">+' + n + ' min</span>' : n < 0 ? '<span class="ontime">' + n + ' min</span>' : '<span class="ontime">on time</span>'; }
+// minutes between two "HH:MM" times (handles midnight)
+function diffMin(a, b) { if (!a || !b) return 0; var x = a.split(':'), y = b.split(':'); var d = (+y[0] * 60 + +y[1]) - (+x[0] * 60 + +x[1]); if (d < -720) d += 1440; if (d > 720) d -= 1440; return d; }
+function liveOf(r) { return !!(r.last || (r.status && !/no information/i.test(r.status))); }
+function lateCell(n, r) { if (r && !liveOf(r) && !n) return '<span class="where" title="Not running yet or no live position from Irish Rail: timetable time">timetable</span>'; return n > 0 ? '<span class="late">+' + n + ' min</span>' : n < 0 ? '<span class="ontime">' + n + ' min</span>' : '<span class="ontime">on time</span>'; }
 function lateText(t) { return esc(t).replace(/\((\d+) mins? late\)/i, '<span class="late">($1 min late)</span>').replace(/\((\d+) mins? early\)/i, '<span class="ontime">($1 min early)</span>').replace(/\(On time\)/i, '<span class="ontime">(on time)</span>'); }
 function board(dep) {
   var box = $(dep ? 'dep' : 'arr');
   if (!station) { box.innerHTML = '<div class="note">Loading…</div>'; return; }
-  if (!station.ok) { box.innerHTML = '<div class="note">Could not get the Connolly board from Irish Rail right now.</div>'; return; }
+  if (!station.ok) { box.innerHTML = '<div class="note">Could not get the Connolly board from Irish Rail right now.' + (station.error ? ' (' + esc(station.error) + ')' : '') + '</div>'; return; }
   var rows = station.rows.filter(function (r) { return dep ? (r.type === 'O' || r.type === 'S') : (r.type === 'D' || r.type === 'S'); }).sort(function (a, b) { return a.dueIn - b.dueIn; });
   if (!rows.length) { box.innerHTML = '<div class="note">Nothing in the next 90 minutes.</div>'; return; }
   box.innerHTML = '<table><thead><tr><th>Train</th><th>' + (dep ? 'To' : 'From') + '</th><th>Sched.</th><th>Expected</th><th>Late</th></tr></thead><tbody>' +
     rows.map(function (r) {
       var sch = tm(dep ? r.schDep : r.schArr) || tm(r.schArr) || tm(r.schDep), exp = tm(dep ? r.expDep : r.expArr) || tm(r.expArr) || tm(r.expDep);
+      r.late = Math.max(r.late || 0, diffMin(sch, exp));   // the bigger of Irish Rail's "late" and expected − scheduled
       return '<tr data-id="' + esc(r.id) + '" data-date="' + esc(r.date) + '"' + (r.late >= 10 ? ' class="bad"' : '') + '><td class="id">' + esc(r.id) + '</td><td>' + esc(dep ? r.dest : r.origin) +
-        (r.last ? '<div class="where">' + esc(r.last) + '</div>' : '') + '</td><td>' + esc(sch) + '</td><td>' + esc(exp) + '</td><td>' + lateCell(r.late) + '</td></tr>';
+        (r.last ? '<div class="where">' + esc(r.last) + '</div>' : '') + '</td><td>' + esc(sch) + '</td><td>' + esc(exp) + '</td><td>' + lateCell(r.late, r) + '</td></tr>';
     }).join('') + '</tbody></table>';
 }
 function all() {
@@ -118,7 +122,7 @@ function refresh() {
   get('format=trains').then(function (r) { trains = r; all(); });
   if (sel) loadMoves();
 }
-function stamp() { $('upd').textContent = station && station.at ? 'Updated ' + new Date(station.at).toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' }) : ''; }
+function stamp() { $('upd').textContent = station && station.at ? (station.name ? station.name + ' · ' : '') + 'Irish Rail time ' + (station.query || new Date(station.at).toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' })) : ''; }
 board(true); board(false); all(); refresh();
 setInterval(function () { if (!document.hidden) refresh(); }, 30000);
 </script>
