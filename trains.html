@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trains – Connolly</title>
+<meta name="theme-color" content="#0E2A47">
+<style>
+  :root { --navy:#0E2A47; --bg:#F3F6FA; --card:#fff; --line:#e3e8ef; --sub:#5B6B84; --late:#b91c1c; --ok:#047857; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: #14213d; font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  header { background: var(--navy); color: #fff; padding: 12px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; flex: 1; }
+  header .upd { font-size: 12px; opacity: .8; }
+  main { padding: 14px 16px 30px; max-width: 1400px; margin: 0 auto; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; overflow: hidden; }
+  .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--navy); margin: 0 0 8px; display: flex; justify-content: space-between; align-items: baseline; }
+  .card h2 span { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--sub); }
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 11px; text-transform: uppercase; color: var(--sub); text-align: left; padding: 6px; border-bottom: 1px solid var(--line); }
+  td { padding: 7px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover td { background: #f5f8fc; }
+  tr.bad td { background: #fdecec; }
+  td.id { font-weight: 800; white-space: nowrap; }
+  .where { font-size: 11px; color: var(--sub); }
+  .late { color: var(--late); font-weight: 800; } .ontime { color: var(--ok); font-weight: 700; }
+  .note { color: var(--sub); font-size: 12px; margin-top: 6px; }
+  input[type=search] { width: 100%; max-width: 420px; padding: 9px 11px; font-size: 14px; border: 1px solid #c9d2df; border-radius: 9px; margin-bottom: 8px; }
+  .st { font-size: 10px; font-weight: 800; border-radius: 5px; padding: 1px 5px; margin-left: 4px; }
+  .st.R { background: #d1fae5; color: #065f46; } .st.N { background: #e5e7eb; color: #374151; } .st.T { background: #fee2e2; color: #991b1b; }
+  #mv { position: fixed; inset: 0; background: rgba(14,42,71,.45); display: none; align-items: flex-start; justify-content: center; padding: 40px 16px; z-index: 10; overflow-y: auto; }
+  #mv.open { display: flex; }
+  #mv .box { background: #fff; border-radius: 14px; width: 100%; max-width: 620px; padding: 16px; }
+  #mv .head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  #mv .head h3 { margin: 0; flex: 1; font-size: 18px; }
+  #mv button { border: 0; background: var(--navy); color: #fff; border-radius: 8px; padding: 8px 14px; font-size: 14px; cursor: pointer; }
+  #mv tbody tr { cursor: default; }
+  #mv tr.cur td { background: #fef3c7; font-weight: 800; } #mv tr.nxt td { background: #e0f2fe; } #mv tr.done td { color: var(--sub); }
+</style>
+</head>
+<body>
+<header><h1>🚆 Trains · Connolly</h1><div class="upd" id="upd"></div></header>
+<main>
+  <div class="grid">
+    <div class="card"><h2>Departures <span>next 90 min</span></h2><div id="dep"></div></div>
+    <div class="card"><h2>Arrivals <span>next 90 min</span></h2><div id="arr"></div></div>
+  </div>
+  <div class="card" style="margin-top:14px"><h2>All trains in service <span id="allInfo"></span></h2>
+    <input type="search" id="q" placeholder="Train ID (e.g. E109), station or line…" autocomplete="off">
+    <div id="all"></div>
+  </div>
+  <div class="note">Data from Irish Rail (realtime) · red rows: 10 minutes late or more · updates every 30 seconds · click a train to see its movements. Irish Rail does not publish platform numbers.</div>
+</main>
+<div id="mv"><div class="box"><div class="head"><h3 id="mvTitle"></h3><button id="mvClose">Close</button></div><div id="mvBody"></div></div></div>
+<script>
+var EXEC = 'https://script.google.com/macros/s/AKfycbzyF9G_x34LnFZwufDixy3yff7WdMxnVlfeohSYnmlN8Dg025mdryAWMy1K-z0UA6dPTw/exec';
+var station = null, trains = null, sel = null;
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function get(q) { return fetch(EXEC + '?' + q + '&t=' + Date.now()).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; }); }
+function tm(v) { return v && !/^00:00(:00)?$/.test(v) ? String(v).slice(0, 5) : ''; }
+function lateCell(n) { return n > 0 ? '<span class="late">+' + n + ' min</span>' : n < 0 ? '<span class="ontime">' + n + ' min</span>' : '<span class="ontime">on time</span>'; }
+function lateText(t) { return esc(t).replace(/\((\d+) mins? late\)/i, '<span class="late">($1 min late)</span>').replace(/\((\d+) mins? early\)/i, '<span class="ontime">($1 min early)</span>').replace(/\(On time\)/i, '<span class="ontime">(on time)</span>'); }
+function board(dep) {
+  var box = $(dep ? 'dep' : 'arr');
+  if (!station) { box.innerHTML = '<div class="note">Loading…</div>'; return; }
+  if (!station.ok) { box.innerHTML = '<div class="note">Could not get the Connolly board from Irish Rail right now.</div>'; return; }
+  var rows = station.rows.filter(function (r) { return dep ? (r.type === 'O' || r.type === 'S') : (r.type === 'D' || r.type === 'S'); }).sort(function (a, b) { return a.dueIn - b.dueIn; });
+  if (!rows.length) { box.innerHTML = '<div class="note">Nothing in the next 90 minutes.</div>'; return; }
+  box.innerHTML = '<table><thead><tr><th>Train</th><th>' + (dep ? 'To' : 'From') + '</th><th>Sched.</th><th>Expected</th><th>Late</th></tr></thead><tbody>' +
+    rows.map(function (r) {
+      var sch = tm(dep ? r.schDep : r.schArr) || tm(r.schArr) || tm(r.schDep), exp = tm(dep ? r.expDep : r.expArr) || tm(r.expArr) || tm(r.expDep);
+      return '<tr data-id="' + esc(r.id) + '" data-date="' + esc(r.date) + '"' + (r.late >= 10 ? ' class="bad"' : '') + '><td class="id">' + esc(r.id) + '</td><td>' + esc(dep ? r.dest : r.origin) +
+        (r.last ? '<div class="where">' + esc(r.last) + '</div>' : '') + '</td><td>' + esc(sch) + '</td><td>' + esc(exp) + '</td><td>' + lateCell(r.late) + '</td></tr>';
+    }).join('') + '</tbody></table>';
+}
+function all() {
+  var box = $('all');
+  if (!trains) { box.innerHTML = '<div class="note">Loading…</div>'; return; }
+  if (!trains.ok) { box.innerHTML = '<div class="note">Could not get the trains from Irish Rail right now.</div>'; return; }
+  var q = $('q').value.trim().toLowerCase();
+  var list = trains.trains.filter(function (t) { return !q || (t.id + ' ' + t.msg).toLowerCase().indexOf(q) >= 0; })
+    .sort(function (a, b) { return (a.status === 'R' ? 0 : 1) - (b.status === 'R' ? 0 : 1) || a.id.localeCompare(b.id); });
+  $('allInfo').textContent = list.length + ' of ' + trains.trains.length;
+  box.innerHTML = list.length ? '<table><thead><tr><th>Train</th><th>Route</th><th>Where now</th></tr></thead><tbody>' + list.map(function (t) {
+    var st = { R: 'Running', N: 'Not started', T: 'Terminated' }[t.status] || t.status;
+    return '<tr data-id="' + esc(t.id) + '" data-date="' + esc(t.date) + '"><td class="id">' + esc(t.id) + '<span class="st ' + esc(t.status) + '">' + esc(st) + '</span></td><td>' + lateText(t.route) + '</td><td class="where" style="font-size:13px">' + esc(t.where) + '</td></tr>';
+  }).join('') + '</tbody></table>' : '<div class="note">No train matches.</div>';
+}
+function moves(d) {
+  var box = $('mvBody');
+  if (!d) { box.innerHTML = '<div class="note">Loading…</div>'; return; }
+  if (!d.ok || !d.stops || !d.stops.length) { box.innerHTML = '<div class="note">No movements found for this train today.</div>'; return; }
+  var f = d.stops[0], t = trains && trains.ok ? trains.trains.filter(function (x) { return x.id === sel.id; })[0] : null;
+  var h = '<div class="note" style="margin-top:0">' + esc(f.origin) + ' → ' + esc(f.dest) + (t ? '<br>' + lateText(t.route) + (t.where ? '<br>' + esc(t.where) : '') : '') + '</div>';
+  h += '<table><thead><tr><th>Station</th><th>Sched.</th><th>Expected</th><th>Actual</th></tr></thead><tbody>';
+  d.stops.filter(function (s) { return s.type !== 'T' || s.stop === 'C' || s.stop === 'N'; }).forEach(function (s) {
+    var done = !!(tm(s.dep) || (s.type === 'D' && tm(s.arr)));
+    var cls = s.stop === 'C' ? 'cur' : s.stop === 'N' ? 'nxt' : done ? 'done' : '';
+    var sch = tm(s.schDep) || tm(s.schArr), exp = tm(s.expDep) || tm(s.expArr), act = tm(s.dep) || tm(s.arr);
+    h += '<tr class="' + cls + '"><td>' + (s.stop === 'C' ? '🚆 ' : s.stop === 'N' ? '➡ ' : '') + esc(s.name) + '</td><td>' + esc(sch) + '</td><td' + (sch && exp && exp > sch ? ' class="late"' : '') + '>' + esc(act ? '' : exp) + '</td><td>' + esc(act) + '</td></tr>';
+  });
+  box.innerHTML = h + '</tbody></table><div class="note">🚆 where it is now · ➡ next stop</div>';
+}
+function loadMoves() { if (!sel) return; get('format=trainmoves&id=' + encodeURIComponent(sel.id) + '&date=' + encodeURIComponent(sel.date || '')).then(moves); }
+function openMoves(id, date) { sel = { id: id, date: date }; $('mvTitle').textContent = 'Train ' + id; moves(null); $('mv').classList.add('open'); loadMoves(); }
+$('mvClose').onclick = function () { $('mv').classList.remove('open'); sel = null; };
+$('mv').onclick = function (e) { if (e.target === this) $('mvClose').onclick(); };
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $('mvClose').onclick(); });
+document.addEventListener('click', function (e) { var tr = e.target.closest('#dep tr[data-id], #arr tr[data-id], #all tr[data-id]'); if (tr) openMoves(tr.getAttribute('data-id'), tr.getAttribute('data-date')); });
+try { $('q').value = localStorage.getItem('sup_train_q') || ''; } catch (e) {}
+$('q').oninput = function () { try { localStorage.setItem('sup_train_q', this.value); } catch (e) {} all(); };
+function refresh() {
+  get('format=station&code=CNLLY').then(function (r) { station = r; board(true); board(false); stamp(); });
+  get('format=trains').then(function (r) { trains = r; all(); });
+  if (sel) loadMoves();
+}
+function stamp() { $('upd').textContent = station && station.at ? 'Updated ' + new Date(station.at).toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' }) : ''; }
+board(true); board(false); all(); refresh();
+setInterval(function () { if (!document.hidden) refresh(); }, 30000);
+</script>
+</body>
+</html>
