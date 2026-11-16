@@ -115,6 +115,23 @@
   #contentOverlay .cmedia .frame { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: #000; }
   #contentOverlay .cmedia iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
   #contentOverlay a.ext { display: block; text-align: center; padding: 14px; border-radius: 10px; background: var(--line); color: #fff; text-decoration: none; font-weight: 600; }
+  #contentOverlay .tsearch { width: 100%; font-size: 17px; padding: 12px; border-radius: 12px; border: 1px solid #c9d2df; margin: 0 0 4px; box-sizing: border-box; }
+  #contentOverlay .titem { display: block; width: 100%; text-align: left; background: var(--card); border-radius: 12px; padding: 12px 14px; margin-top: 8px; border: 0; color: inherit; font: inherit; cursor: pointer; }
+  #contentOverlay .titem .tid { font-weight: 800; font-size: 17px; }
+  #contentOverlay .titem .tst { font-size: 11px; font-weight: 800; border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; }
+  #contentOverlay .titem .tst.R { background: #d1fae5; color: #065f46; } #contentOverlay .titem .tst.N { background: #e5e7eb; color: #374151; } #contentOverlay .titem .tst.T { background: #fee2e2; color: #991b1b; }
+  #contentOverlay .titem .trt { font-size: 14px; margin-top: 3px; } #contentOverlay .titem .twh { font-size: 13px; color: var(--sub); margin-top: 2px; }
+  #contentOverlay .late { color: #f87171; font-weight: 800; } #contentOverlay .ontime { color: #34d399; font-weight: 800; }
+  #contentOverlay .mv { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; background: var(--card); border-radius: 12px; overflow: hidden; }
+  #contentOverlay .mv td, #contentOverlay .mv th { padding: 7px 8px; border-bottom: 1px solid rgba(0,0,0,.06); text-align: left; }
+  #contentOverlay .mv th { font-size: 11px; text-transform: uppercase; color: var(--sub); }
+  #contentOverlay .mv tr.done td { color: var(--sub); } #contentOverlay .mv tr.cur td { background: rgba(250,204,21,.25); font-weight: 800; } #contentOverlay .mv tr.nxt td { background: rgba(56,189,248,.20); }
+  #contentOverlay .mv tr.bad td { background: rgba(239,68,68,.22); }
+  #contentOverlay .ttabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  #contentOverlay .ttabs button { flex: 1; margin: 0; padding: 10px 4px; font-size: 14px; background: var(--card); color: inherit; border: 1px solid #c9d2df; }
+  #contentOverlay .ttabs button.on { background: #0E2A47; color: #fff; border-color: #0E2A47; }
+  #contentOverlay .brd td:first-child { font-weight: 800; white-space: nowrap; }
+  #contentOverlay .brd tr { cursor: pointer; }
   #contentOverlay .emg { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--card); border-radius: 12px; padding: 14px; margin-top: 10px; }
   #contentOverlay .emg .en { font-size: 17px; font-weight: 700; } #contentOverlay .emg .eo { font-size: 13px; color: var(--sub); margin-top: 2px; }
   #contentOverlay .emg a.call { flex: none; background: #E5342A; color: #fff; text-decoration: none; font-weight: 800; font-size: 17px; padding: 12px 14px; border-radius: 10px; white-space: nowrap; }
@@ -204,6 +221,7 @@
     <button class="planbtn" id="trainBtn">Training</button>
   </div>
   <button class="planbtn" id="emgBtn" style="border-color:#E5342A;margin-top:10px;">Emergency Numbers</button>
+  <button class="planbtn" id="trainsBtn" style="margin-top:10px;">🚆 Trains · Connolly board</button>
   <div class="card">
     <div class="topline">
       <div>
@@ -1257,7 +1275,123 @@ function openBriefing_noSync(){
 $('briefBtn').addEventListener('click', openBriefing);
 $('trainBtn').addEventListener('click', () => { openTrainingList(); syncContent(); });
 $('contentClose').addEventListener('click', closeContent);
-$('contentBack').addEventListener('click', openTrainingList);
+$('contentBack').addEventListener('click', () => { if(contentView === 'tmove') openTrains(); else openTrainingList(); });
+
+/* ================= Trains in service (Irish Rail, through the Onboard Apps Script) ================= */
+const LS_TQ = 'onboardpatrol_train_q';
+let trainsData = null, trainTimer = null, trainSel = null;
+function tq(){ try{ return localStorage.getItem(LS_TQ) || ''; }catch(e){ return ''; } }
+function lateHtml(txt){ return esc(txt).replace(/\((\d+) mins? late\)/i, '<span class="late">($1 min late)</span>').replace(/\((\d+) mins? early\)/i, '<span class="ontime">($1 min early)</span>').replace(/\(On time\)/i, '<span class="ontime">(on time)</span>'); }
+function statusName(s){ return s === 'R' ? 'Running' : s === 'N' ? 'Not started' : s === 'T' ? 'Terminated' : s; }
+function renderTrains(){
+  if(contentView !== 'trains') return;
+  const box = $('trainList'); if(!box) return;
+  if(!trainsData){ box.innerHTML = '<div class="note">Loading…</div>'; return; }
+  if(!trainsData.ok){ box.innerHTML = '<div class="note">Could not get the trains from Irish Rail right now. Try again in a minute.</div>'; return; }
+  const q = ($('trainQ').value || '').trim().toLowerCase();
+  let list = trainsData.trains.filter(t => !q || (t.id + ' ' + t.msg).toLowerCase().indexOf(q) >= 0);
+  list.sort((a, b) => (a.status === 'R' ? 0 : 1) - (b.status === 'R' ? 0 : 1) || a.id.localeCompare(b.id));
+  const at = new Date(trainsData.at);
+  $('trainInfo').textContent = list.length + ' of ' + trainsData.trains.length + ' trains · updated ' + at.toLocaleTimeString('en-IE', { hour:'2-digit', minute:'2-digit' });
+  box.innerHTML = list.length ? list.slice(0, 150).map(t =>
+    '<button class="titem" data-id="' + esc(t.id) + '" data-date="' + esc(t.date) + '"><span class="tid">' + esc(t.id) + '</span><span class="tst ' + esc(t.status) + '">' + esc(statusName(t.status)) + '</span>' +
+    (t.dir ? ' <span class="note" style="margin:0">' + esc(t.dir) + '</span>' : '') +
+    '<div class="trt">' + lateHtml(t.route) + '</div>' + (t.where ? '<div class="twh">' + esc(t.where) + '</div>' : '') + '</button>').join('')
+    : '<div class="note">No train matches "' + esc(q) + '".</div>';
+  box.querySelectorAll('.titem').forEach(b => b.addEventListener('click', () => openTrainMoves(b.getAttribute('data-id'), b.getAttribute('data-date'))));
+}
+async function loadTrains(){
+  try{ trainsData = await fetchJSON('format=trains'); }catch(e){ trainsData = { ok:false }; }
+  renderTrains();
+}
+const LS_TTAB = 'onboardpatrol_train_tab';
+let trainTab = 'dep', stationData = null;
+try{ trainTab = localStorage.getItem(LS_TTAB) || 'dep'; }catch(e){}
+function openTrains(){
+  contentView = 'trains'; trainSel = null;
+  $('contentBack').classList.add('hidden');
+  $('contentTitle').textContent = 'Trains';
+  $('contentBody').innerHTML = '<div class="ttabs"><button data-t="dep">Connolly departures</button><button data-t="arr">Connolly arrivals</button><button data-t="all">All trains</button></div>' +
+    '<div id="tAll"><input class="tsearch" id="trainQ" type="search" placeholder="Train ID (e.g. E109), station or line…" autocomplete="off">' +
+    '<div class="note" id="trainInfo" style="margin-top:4px"></div><div id="trainList"></div></div><div id="tBoard"></div>';
+  $('trainQ').value = tq();
+  $('trainQ').addEventListener('input', () => { try{ localStorage.setItem(LS_TQ, $('trainQ').value); }catch(e){} renderTrains(); });
+  $('contentBody').querySelectorAll('.ttabs button').forEach(b => b.addEventListener('click', () => { trainTab = b.getAttribute('data-t'); try{ localStorage.setItem(LS_TTAB, trainTab); }catch(e){} showTrainTab(); }));
+  showContent();
+  showTrainTab();
+  clearInterval(trainTimer);
+  trainTimer = setInterval(() => {
+    if($('contentOverlay').classList.contains('hidden') || (contentView !== 'trains' && contentView !== 'tmove')){ clearInterval(trainTimer); return; }
+    if(contentView === 'trains'){ if(trainTab === 'all') loadTrains(); else loadStation(); } else if(trainSel) loadTrainMoves();
+  }, 30000);
+}
+function showTrainTab(){
+  $('contentBody').querySelectorAll('.ttabs button').forEach(b => b.classList.toggle('on', b.getAttribute('data-t') === trainTab));
+  $('tAll').style.display = trainTab === 'all' ? '' : 'none';
+  $('tBoard').style.display = trainTab === 'all' ? 'none' : '';
+  if(trainTab === 'all'){ renderTrains(); loadTrains(); } else { renderBoard(); loadStation(); }
+}
+async function loadStation(){
+  try{ stationData = await fetchJSON('format=station&code=CNLLY'); }catch(e){ stationData = { ok:false }; }
+  renderBoard();
+}
+function renderBoard(){
+  if(contentView !== 'trains' || trainTab === 'all') return;
+  const box = $('tBoard'); if(!box) return;
+  if(!stationData){ box.innerHTML = '<div class="note">Loading…</div>'; return; }
+  if(!stationData.ok){ box.innerHTML = '<div class="note">Could not get the Connolly board from Irish Rail right now. Try again in a minute.</div>'; return; }
+  const dep = trainTab === 'dep';
+  // departures: trains that start or stop here; arrivals: trains that end or stop here
+  let rows = stationData.rows.filter(r => dep ? (r.type === 'O' || r.type === 'S') : (r.type === 'D' || r.type === 'S'));
+  rows.sort((a, b) => a.dueIn - b.dueIn);
+  const at = new Date(stationData.at);
+  let h = '<div class="note" style="margin-top:0">Next 90 minutes · updated ' + at.toLocaleTimeString('en-IE', { hour:'2-digit', minute:'2-digit' }) + ' · tap a train to see where it is</div>';
+  if(!rows.length){ box.innerHTML = h + '<div class="note">No ' + (dep ? 'departures' : 'arrivals') + ' in the next 90 minutes.</div>'; return; }
+  h += '<table class="mv brd"><thead><tr><th>Train</th><th>' + (dep ? 'To' : 'From') + '</th><th>Sched.</th><th>Expected</th><th>Late</th></tr></thead><tbody>';
+  rows.forEach(r => {
+    const sch = tm(dep ? r.schDep : r.schArr) || tm(r.schArr) || tm(r.schDep), exp = tm(dep ? r.expDep : r.expArr) || tm(r.expArr) || tm(r.expDep);
+    const late = r.late > 0 ? '<span class="late">+' + r.late + ' min</span>' : r.late < 0 ? '<span class="ontime">' + r.late + ' min</span>' : '<span class="ontime">on time</span>';
+    h += '<tr data-id="' + esc(r.id) + '" data-date="' + esc(r.date) + '"' + (r.late >= 10 ? ' class="bad"' : '') + '><td>' + esc(r.id) + '</td><td>' + esc(dep ? r.dest : r.origin) +
+      (r.last ? '<div class="note" style="margin:2px 0 0;font-size:11px">' + esc(r.last) + '</div>' : '') + '</td><td>' + esc(sch) + '</td><td>' + esc(exp) + '</td><td>' + late + '</td></tr>';
+  });
+  box.innerHTML = h + '</tbody></table><div class="note">Red rows: 10 minutes late or more · updates every 30 seconds</div>';
+  box.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => openTrainMoves(tr.getAttribute('data-id'), tr.getAttribute('data-date'))));
+}
+function tm(v){ return v && !/^00:00(:00)?$/.test(v) ? String(v).slice(0, 5) : ''; }
+function renderTrainMoves(d){
+  if(contentView !== 'tmove') return;
+  const box = $('moveBox'); if(!box) return;
+  if(!d){ box.innerHTML = '<div class="note">Loading…</div>'; return; }
+  if(!d.ok || !d.stops || !d.stops.length){ box.innerHTML = '<div class="note">No movements found for this train today.</div>'; return; }
+  const t = (trainsData && trainsData.ok && trainsData.trains.find(x => x.id === trainSel.id)) || null;
+  const first = d.stops[0];
+  let h = '<div class="note" style="margin-top:0">' + esc(first.origin) + ' → ' + esc(first.dest) + (t ? '<br>' + lateHtml(t.route) + (t.where ? '<br>' + esc(t.where) : '') : '') + '</div>';
+  h += '<table class="mv"><thead><tr><th>Station</th><th>Sched.</th><th>Expected</th><th>Actual</th></tr></thead><tbody>';
+  d.stops.filter(s => s.type !== 'T' || s.stop === 'C' || s.stop === 'N').forEach(s => {
+    const done = !!(tm(s.dep) || (s.type === 'D' && tm(s.arr)));
+    const cls = s.stop === 'C' ? 'cur' : s.stop === 'N' ? 'nxt' : done ? 'done' : '';
+    const sch = tm(s.schDep) || tm(s.schArr), exp = tm(s.expDep) || tm(s.expArr), act = tm(s.dep) || tm(s.arr);
+    const late = sch && exp && exp > sch ? ' class="late"' : '';
+    h += '<tr class="' + cls + '"><td>' + (s.stop === 'C' ? '🚆 ' : s.stop === 'N' ? '➡ ' : '') + esc(s.name) + '</td><td>' + esc(sch) + '</td><td' + late + '>' + esc(act ? '' : exp) + '</td><td>' + esc(act) + '</td></tr>';
+  });
+  h += '</tbody></table><div class="note">🚆 where it is now · ➡ next stop · updates every 30 seconds</div>';
+  box.innerHTML = h;
+}
+async function loadTrainMoves(){
+  if(!trainSel) return;
+  let d; try{ d = await fetchJSON('format=trainmoves&id=' + encodeURIComponent(trainSel.id) + '&date=' + encodeURIComponent(trainSel.date || '')); }catch(e){ d = { ok:false }; }
+  renderTrainMoves(d);
+}
+function openTrainMoves(id, date){
+  contentView = 'tmove'; trainSel = { id, date };
+  $('contentBack').classList.remove('hidden');
+  $('contentTitle').textContent = 'Train ' + id;
+  $('contentBody').innerHTML = '<div id="moveBox"></div>';
+  $('contentOverlay').scrollTop = 0;
+  renderTrainMoves(null);
+  loadTrainMoves();
+}
+$('trainsBtn').addEventListener('click', openTrains);
 setInterval(syncContent, 5 * 60 * 1000);
 
 /* ================= Boot ================= */
