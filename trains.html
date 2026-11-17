@@ -52,6 +52,13 @@
     <input type="search" id="q" placeholder="Train ID (e.g. E109), station or line…" autocomplete="off">
     <div id="all"></div>
   </div>
+  <div class="card" id="history" style="margin-top:14px"><h2>History · late trains at Connolly <span id="hInfo"></span></h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+      <input type="date" id="hDate" style="padding:8px 10px;font-size:14px;border:1px solid #c9d2df;border-radius:9px">
+      <input type="search" id="hQ" placeholder="Train ID or line…" style="max-width:260px;margin:0">
+    </div>
+    <div id="hList"><div class="note">Pick a day.</div></div>
+  </div>
   <div class="note">Data from Irish Rail (realtime) · red rows: 10 minutes late or more · "timetable" = the train has not started or Irish Rail has no live position for it · updates every 30 seconds · click a train to see its movements. Irish Rail does not publish platform numbers.</div>
 </main>
 <div id="mv"><div class="box"><div class="head"><h3 id="mvTitle"></h3><button id="mvClose">Close</button></div><div id="mvBody"></div></div></div>
@@ -123,6 +130,24 @@ function refresh() {
   if (sel) loadMoves();
 }
 function stamp() { $('upd').textContent = station && station.at ? (station.name ? station.name + ' · ' : '') + 'Irish Rail time ' + (station.query || new Date(station.at).toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' })) : ''; }
+// ---- history (recorded every 5 minutes by the Onboard Apps Script, kept 30 days) ----
+var hist = null;
+function isoDay(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function loadHist() { var d = $('hDate').value; $('hList').innerHTML = '<div class="note">Loading…</div>'; get('format=trainlog&date=' + encodeURIComponent(d)).then(function (r) { hist = r; drawHist(); }); }
+function drawHist() {
+  var box = $('hList');
+  if (!hist || !hist.ok) { box.innerHTML = '<div class="note">The history is not switched on yet (Onboard Apps Script).</div>'; return; }
+  var q = $('hQ').value.trim().toLowerCase();
+  var rows = hist.rows.filter(function (r) { return !q || (r.id + ' ' + r.origin + ' ' + r.dest).toLowerCase().indexOf(q) >= 0; });
+  $('hInfo').textContent = rows.length + ' train(s) ' + hist.minLate + '+ min late';
+  box.innerHTML = rows.length ? '<table><thead><tr><th>At Connolly</th><th>Train</th><th>Route</th><th>Max late</th><th>Where (at max)</th></tr></thead><tbody>' + rows.map(function (r) {
+    return '<tr data-id="' + esc(r.id) + '"' + (r.late >= 10 ? ' class="bad"' : '') + '><td>' + esc(r.time) + ' <span class="where">' + esc(r.kind === 'dep' ? 'dep' : r.kind === 'arr' ? 'arr' : '') + '</span></td><td class="id">' + esc(r.id) + '</td><td>' + esc(r.origin) + ' → ' + esc(r.dest) + '</td><td><span class="late">+' + r.late + ' min</span></td><td class="where" style="font-size:13px">' + esc(r.where) + '</td></tr>';
+  }).join('') + '</tbody></table>' : '<div class="note">No train ' + hist.minLate + '+ minutes late recorded on this day.</div>';
+}
+$('hDate').value = isoDay(new Date(Date.now() - 86400000));
+$('hDate').onchange = loadHist; $('hQ').oninput = drawHist;
+loadHist();
+if (location.hash === '#history') setTimeout(function () { $('history').scrollIntoView(); }, 300);
 board(true); board(false); all(); refresh();
 setInterval(function () { if (!document.hidden) refresh(); }, 30000);
 </script>
